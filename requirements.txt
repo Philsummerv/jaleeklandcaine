@@ -1,0 +1,4 @@
+anthropic>=1.11
+mss>=10
+numpy
+pillow

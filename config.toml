@@ -1,0 +1,37 @@
+# --- Claude -------------------------------------------------------------
+tactician_model = "claude-haiku-4-5"     # fast "hands", called ~once a second
+strategist_model = "claude-opus-5-5"     # slow "mind", picks objectives
+strategist_effort = "medium"             # low | medium | high
+strategist_interval_seconds = 30
+
+# Tactician pacing: it calls Claude again when less than `lookahead` seconds of
+# plan are left, but never more often than min_interval and at least every max_interval.
+tactician_min_interval = 0.8
+tactician_lookahead_seconds = 1.5
+tactician_max_interval = 4.0
+
+# The bot stops itself once this much has been spent in one session.
+max_dollars_per_session = 5.00
+
+# --- Game / screen ---------------------------------------------------------
+window_title = "Minecraft"
+screenshot_width = 1024       # screenshots are shrunk to this width before sending
+jpeg_quality = 70
+
+# Mouse pixels per degree of camera turn. Run `python -m bot test-input` and adjust
+# until the 360 turn ends where it started. Depends on your in-game sensitivity.
+mouse_pixels_per_degree = 6.0
+
+# How different (0-255) the crosshair area must become to count as "block broke".
+mine_break_threshold = 28
+
+log_file = "bot.log"
+rules_cache = ".manifesto_rules.json"
+
+# --- HUD reading (fractions of the window: x0, y0, x1, y1) ------------------
+# Run `python -m bot calibrate` with full health/hunger and check calibration.png.
+[hud]
+health_region = [0.30, 0.83, 0.50, 0.935]
+hunger_region = [0.50, 0.83, 0.70, 0.935]
+lava_region   = [0.30, 0.35, 0.70, 0.85]
+lava_fraction = 0.12          # share of lava-colored pixels ahead that triggers the reflex
