@@ -12,9 +12,9 @@ A bot that plays Minecraft Bedrock Edition on your PC, as you, guided by four st
 ## How it works
 
 ```
- Strategist (Opus, ~every 30s)   --- picks an objective from the manifesto + screenshot
+ Strategist (Opus, on events)    --- picks an objective when the last one ends or gets stuck (fallback every 2 min)
         |
- Tactician  (Haiku, ~every 1s)   --- screenshot -> 2-5 s of actions; new plans replace the old tail
+ Tactician  (Haiku, every 1-8s)  --- screenshot -> 2-8 s of actions; new plans replace the old tail
         |
  Executor   (local, 100 Hz)      --- smooth key/mouse input; keeps walking while Claude thinks
         ^
@@ -40,7 +40,16 @@ The bot automatically pauses (and releases all keys) whenever Minecraft isn't th
 
 ## Cost
 
-Every Claude call is priced from its real token usage. A status line every 10 s shows the running total, and the bot stops itself at `max_dollars_per_session` (default $5). Expect roughly $8–12/hour with the default models; increase `tactician_min_interval` or `tactician_lookahead_seconds` to spend less.
+Every Claude call is priced from its real token usage. A status line every 10 s (also in `bot.log`) shows the total, a $/hour projection, and for the tactician and strategist separately: spend, calls per minute, skipped calls, average input tokens per call with the share read from cache, and average output tokens. The bot stops itself at `max_dollars_per_session` (default $5).
+
+Expect roughly **$1/hour** with the default config (it was $8–12/hour before the cost work). Most of the saving comes from:
+
+- the tactician on `claude-haiku-5-5` ($0.10/$0.50 per million tokens), with its system prompt read from cache;
+- adaptive pacing: longer plans and fewer calls when nothing is happening, plus skipping calls when the screen hasn't changed;
+- a 768 px screenshot (~440 image tokens instead of ~790);
+- the strategist at `effort = "low"`, called when an objective ends instead of every 30 s.
+
+Every one of these is a setting in `config.toml`, with the old value noted next to it. `python -m unittest discover tests` runs offline checks of the pacing and cost logic.
 
 ## Files
 

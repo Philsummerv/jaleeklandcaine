@@ -1,5 +1,5 @@
-"""Runs the bot: reflexes (local, 10 Hz), tactician (Claude, ~1 Hz),
-strategist (Claude, every ~30 s) and the executor, all in parallel."""
+"""Runs the bot: reflexes (local, 10 Hz), tactician (Claude, every 1-8 s),
+strategist (Claude, when an objective ends or gets stuck) and the executor, all in parallel."""
 
 import collections
 import threading
@@ -9,8 +9,9 @@ import traceback
 import anthropic
 
 from . import winapi
-from .brain import Brain, BudgetExceeded, CostTracker
+from .brain import BadResponse, Brain, BudgetExceeded, CostTracker
 from .executor import Executor
+from .pacing import call_reason, frame_change, frame_signature, should_skip
 from .screen import HudReader, Screen, encode_jpeg
 
 MAX_SECONDS = 6.0
@@ -62,6 +63,7 @@ class Bot:
         self.wake_tactician = threading.Event()
         self.wake_strategist = threading.Event()
         self.last_damage = 0.0
+        self.last_stuck = 0.0
 
     # --- helpers ----------------------------------------------------------
 
@@ -90,8 +92,19 @@ class Bot:
             "hunger": f"{f:.0%}" if f is not None else "unknown",
         }
 
-    def frame_b64(self):
-        return encode_jpeg(self.screen.grab(), self.cfg["screenshot_width"], self.cfg.get("jpeg_quality", 70))
+    def frame_b64(self, frame=None):
+        if frame is None:
+            frame = self.screen.grab()
+        return encode_jpeg(frame, self.cfg["screenshot_width"], self.cfg.get("jpeg_quality", 70))
+
+    def calm(self):
+        """True when nothing needs fast reactions: no recent alerts, reflexes or stuck reports,
+        and the objective isn't brand new."""
+        now = time.monotonic()
+        return (not self.recent_alerts()
+                and not self.executor.in_reflex()
+                and now - self.last_stuck > 10
+                and now - self.objective_started > 5)
 
     def _spawn(self, fn):
         def guarded():
@@ -140,6 +153,7 @@ class Bot:
                 ], source="reflex")
                 flee_cooldown = now + 6
                 self.alert("REFLEX: low health under attack, fleeing")
+                self.wake_strategist.set()  # SURVIVAL may call for a different objective
 
             if rules["avoid_lava"] and hud["lava"] > self.cfg["hud"]["lava_fraction"] and now > lava_cooldown:
                 self.executor.set_plan([{"type": "walk", "direction": "back", "seconds": 0.6}], source="reflex")
@@ -154,6 +168,8 @@ class Bot:
     # --- strategist: slow, decides WHAT to do ------------------------------
 
     def strategist_loop(self):
+        # Called when there's no objective, when the tactician reports it complete or stuck,
+        # after a flee reflex, and otherwise every `interval` seconds as a fallback.
         interval = self.cfg["strategist_interval_seconds"]
         last = 0.0
         while self.running:
@@ -174,8 +190,8 @@ class Bot:
             }
             try:
                 result, cost = self.brain.strategize(self.frame_b64(), state)
-            except anthropic.APIError as e:
-                self.log(f"strategist API error: {e}")
+            except (anthropic.APIError, BadResponse) as e:
+                self.log(f"strategist error: {e}")
                 time.sleep(3)
                 continue
             old = self.objective["objective"] if self.objective else None
@@ -192,34 +208,60 @@ class Bot:
 
     def tactician_loop(self):
         c = self.cfg
+        adaptive = c.get("tactician_pacing", "fixed") == "adaptive"
+        skip_static = c.get("tactician_skip_static_frames", False)
         last = 0.0
+        last_sig = None
+        recheck_at = 0.0
+        skipping = False
         while self.running:
             time.sleep(0.03)
             if not self.is_active() or self.objective is None or self.executor.in_reflex():
                 continue
-            since = time.monotonic() - last
-            if since < c["tactician_min_interval"]:
+            now = time.monotonic()
+            since = now - last
+            if since < c["tactician_min_interval"] or (now < recheck_at and not self.wake_tactician.is_set()):
                 continue
-            need = (self.wake_tactician.is_set()
-                    or self.executor.remaining_seconds() < c["tactician_lookahead_seconds"]
-                    or since > c["tactician_max_interval"])
-            if not need:
+            calm = adaptive and self.calm()
+            reason = call_reason(
+                self.wake_tactician.is_set(),
+                self.executor.remaining_seconds(),
+                since,
+                c["tactician_lookahead_seconds"],
+                c["tactician_calm_max_interval"] if calm else c["tactician_max_interval"])
+            if reason is None:
                 continue
+            frame = self.screen.grab()
+            sig = frame_signature(frame) if skip_static else None
+            if skip_static and should_skip(reason, frame_change(sig, last_sig), since,
+                                           c["tactician_static_threshold"], c["tactician_static_interval"]):
+                if not skipping:  # count each held-back call once, not every recheck
+                    self.costs.skip("tactician")
+                    skipping = True
+                recheck_at = now + 0.25
+                continue
+            skipping = False
             self.wake_tactician.clear()
             last = time.monotonic()
+            last_sig = sig
+            if adaptive:
+                lo, hi = c["tactician_calm_plan_seconds"] if calm else c["tactician_urgent_plan_seconds"]
+            else:
+                lo, hi = 2, 5
             state = {
                 "objective": self.objective["objective"],
                 "done_when": self.objective["done_when"],
                 "strategist_hints": self.objective["hints"],
+                "plan_seconds": f"{lo:g}-{hi:g}",
                 "vitals": self.vitals(),
                 "alerts": self.recent_alerts(),
                 "executor": self.executor.snapshot(),
                 "your_last_note": self.tactician_note,
             }
             try:
-                result, cost = self.brain.tactics(self.frame_b64(), state)
-            except anthropic.APIError as e:
-                self.log(f"tactician API error: {e}")
+                result, cost = self.brain.tactics(self.frame_b64(frame), state)
+            except (anthropic.APIError, BadResponse) as e:
+                self.log(f"tactician error: {e}")
                 time.sleep(2)
                 continue
             plan = clean_plan(result["plan"])
@@ -227,8 +269,10 @@ class Bot:
             self.tactician_note = result["note"]
             self.last_observation = result["observation"]
             took = time.monotonic() - last
-            self.log(f"tactic ({took:.1f}s, ${cost:.4f}): {result['observation']} -> "
-                     f"{len(plan)} actions{'' if accepted else ' (dropped: reflex active)'}")
+            self.log(f"tactic ({took:.1f}s, ${cost:.4f}, {reason}{', calm' if calm else ''}): "
+                     f"{result['observation']} -> {len(plan)} actions{'' if accepted else ' (dropped: reflex active)'}")
+            if result["stuck"]:
+                self.last_stuck = time.monotonic()
             if result["objective_complete"] or result["stuck"]:
                 if self.objective:
                     outcome = "completed" if result["objective_complete"] else "abandoned (stuck)"
@@ -242,8 +286,8 @@ class Bot:
             time.sleep(10)
             if not self.paused:
                 v = self.vitals()
-                self.log(f"status: health {v['health']} | hunger {v['hunger']} | spent ${self.costs.total:.2f}"
-                         f" of ${self.costs.cap:.2f} | {'ACTIVE' if self.is_active() else 'waiting for game focus'}")
+                self.log(f"status: health {v['health']} | hunger {v['hunger']} | "
+                         f"{'ACTIVE' if self.is_active() else 'waiting for game focus'}\n  {self.costs.summary()}")
 
     def run(self):
         self.log("Compiling manifesto...")
@@ -281,4 +325,4 @@ class Bot:
             self.executor.join(timeout=2)
             self.executor.release_all()
             self.log(f"Stopped. Total spent this session: ${self.costs.total:.2f} "
-                     f"({', '.join(f'{m}: {n} calls' for m, n in self.costs.calls.items())})")
+                     f"({', '.join(f'{m}: {n} calls' for m, n in self.costs.calls.items())})\n  {self.costs.summary()}")

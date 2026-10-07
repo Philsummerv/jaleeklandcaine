@@ -4,12 +4,15 @@ the slow strategist, the fast tactician, and cost tracking."""
 import hashlib
 import json
 import threading
+import time
 from pathlib import Path
 
 import anthropic
 
 # $ per million tokens: (input, output). Cache writes bill at 1.25x input, reads at 0.1x.
+# Haiku 5.5 is $0.10/$0.50 for prompts up to 100K tokens (ours are ~2K).
 PRICES = {
+    "claude-haiku-5-5": (0.10, 0.50),
     "claude-haiku-4-5": (1.00, 5.00),
     "claude-sonnet-5-5": (2.00, 10.00),
     "claude-opus-5-5": (4.00, 20.00),
@@ -22,29 +25,72 @@ class BudgetExceeded(Exception):
     pass
 
 
+class BadResponse(Exception):
+    """A response the bot can't use (refusal, cut off, invalid JSON). Recoverable: try again."""
+
+
 class CostTracker:
+    """Prices every call from its real usage and keeps per-component totals
+    (tactician / strategist / compile) for the status line."""
+
+    FIELDS = ("calls", "skipped", "cost", "input", "cache_write", "cache_read", "output")
+
     def __init__(self, cap):
         self.cap = cap
         self.total = 0.0
         self.calls = {}
+        self.parts = {}
+        self.started = None
         self.lock = threading.Lock()
 
-    def add(self, model, usage):
+    def _part(self, component):
+        return self.parts.setdefault(component, dict.fromkeys(self.FIELDS, 0))
+
+    def add(self, model, usage, component="other"):
         pin, pout = PRICES.get(model, (4.00, 20.00))
-        cost = (
-            usage.input_tokens * pin
-            + (getattr(usage, "cache_creation_input_tokens", 0) or 0) * pin * 1.25
-            + (getattr(usage, "cache_read_input_tokens", 0) or 0) * pin * 0.1
-            + usage.output_tokens * pout
-        ) / 1_000_000
+        fresh = usage.input_tokens
+        write = getattr(usage, "cache_creation_input_tokens", 0) or 0
+        read = getattr(usage, "cache_read_input_tokens", 0) or 0
+        cost = (fresh * pin + write * pin * 1.25 + read * pin * 0.1 + usage.output_tokens * pout) / 1_000_000
         with self.lock:
+            if self.started is None:
+                self.started = time.monotonic()
             self.total += cost
             self.calls[model] = self.calls.get(model, 0) + 1
+            p = self._part(component)
+            p["calls"] += 1
+            p["cost"] += cost
+            p["input"] += fresh
+            p["cache_write"] += write
+            p["cache_read"] += read
+            p["output"] += usage.output_tokens
         return cost
+
+    def skip(self, component):
+        """Count a call that was skipped because nothing on screen changed."""
+        with self.lock:
+            self._part(component)["skipped"] += 1
 
     def check(self):
         if self.total >= self.cap:
             raise BudgetExceeded(f"spending cap of ${self.cap:.2f} reached")
+
+    def summary(self):
+        """One line per component: spend, $/hour, calls/min, and average tokens per call."""
+        with self.lock:
+            minutes = max((time.monotonic() - self.started) / 60, 1 / 60) if self.started else None
+            lines = [f"spent ${self.total:.2f} of ${self.cap:.2f}"
+                     + (f", ~${self.total / minutes * 60:.2f}/hour" if minutes else "")]
+            for name, p in self.parts.items():
+                n = max(p["calls"], 1)
+                cached = p["cache_read"] / max(p["input"] + p["cache_write"] + p["cache_read"], 1)
+                lines.append(
+                    f"{name}: ${p['cost']:.3f} | {p['calls'] / minutes:.1f} calls/min"
+                    + (f" (+{p['skipped'] / minutes:.1f} skipped)" if p["skipped"] else "")
+                    + f" | avg in {(p['input'] + p['cache_write'] + p['cache_read']) / n:.0f}"
+                    f" ({cached:.0%} cached), out {p['output'] / n:.0f}"
+                    if minutes else f"{name}: no calls yet")
+            return "\n  ".join(lines)
 
 
 def parse_manifesto(text):
@@ -64,10 +110,22 @@ def parse_manifesto(text):
     return found
 
 
-def _text(response):
+def _json(response):
     if response.stop_reason == "refusal":
-        raise RuntimeError("Claude declined this request")
-    return next(b.text for b in response.content if b.type == "text")
+        raise BadResponse("Claude declined this request")
+    if response.stop_reason == "max_tokens":
+        raise BadResponse("response was cut off at max_tokens")
+    text = next((b.text for b in response.content if b.type == "text"), None)
+    if text is None:
+        raise BadResponse("response had no text")
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        raise BadResponse(f"invalid JSON: {e}") from None
+
+
+def _compact(state):
+    return json.dumps(state, separators=(",", ":"), ensure_ascii=False)
 
 
 ACTION_SCHEMA = {
@@ -167,7 +225,7 @@ Choose ONE concrete objective achievable in roughly 30 seconds to 3 minutes that
 
 `hints` are practical tips for the tactician (which hotbar slot looks useful, what to look for, what to avoid)."""
 
-TACTICIAN_SYSTEM = """You are the hands of a bot playing Minecraft Bedrock Edition (keyboard + mouse) on a friends' Realm. Every ~1 second you get a fresh screenshot and plan the next 2-5 seconds of actions. Your plan REPLACES whatever is still queued, so always plan from what you see now. Movement should feel continuous: keep moving instead of waiting where sensible.
+TACTICIAN_SYSTEM = """You are the hands of a bot playing Minecraft Bedrock Edition (keyboard + mouse) on a friends' Realm. You get a fresh screenshot whenever the current plan is running out or something happens, and plan the next few seconds of actions: `plan_seconds` in the state says how long the plan should last (short when there is danger, longer when things are calm). Your plan REPLACES whatever is still queued, so always plan from what you see now. Movement should feel continuous: keep moving instead of waiting where sensible.
 
 Manifesto (priority order):
 1. SURVIVAL: {survival}
@@ -185,9 +243,9 @@ Actions (JSON objects, executed in order):
 - key: inventory | drop | escape. Only open menus when really needed.
 - gui_click: x, y as 0-1 fractions of the screenshot, button left|right; only when a menu is open.
 
-Tips: the crosshair is at the screenshot center; a block outline shows what you're aiming at. Mined blocks drop items you pick up by walking over them. Prefer short plans (3-6 actions). If you see lava, a cliff, or a hostile mob, deal with it first. Read the HUD: hearts bottom-left above the hotbar, hunger drumsticks bottom-right.
+Tips: the crosshair is at the screenshot center; a block outline shows what you're aiming at. Mined blocks drop items you pick up by walking over them. Prefer 3-8 actions. If you see lava, a cliff, or a hostile mob, deal with it first. Read the HUD: hearts bottom-left above the hotbar, hunger drumsticks bottom-right.
 
-Fields: observation = what you see, max 20 words. note = a short memo to your next self (what you're trying, what failed). objective_complete = true once the current objective is achieved. stuck = true if the objective seems impossible from here."""
+Fields: observation = what you see, max 12 words. note = a memo to your next self (what you're trying, what failed), max 15 words. In actions, only include the fields that action uses. objective_complete = true once the current objective is achieved. stuck = true if the objective seems impossible from here."""
 
 
 class Brain:
@@ -217,8 +275,8 @@ class Brain:
                            "format": {"type": "json_schema", "schema": RULES_SCHEMA}},
             messages=[{"role": "user", "content": COMPILE_PROMPT.format(**statements)}],
         )
-        self.costs.add(model, response.usage)
-        rules = json.loads(_text(response))
+        self.costs.add(model, response.usage, "compile")
+        rules = _json(response)
         cache.write_text(json.dumps({"key": key, "rules": rules}, indent=2), encoding="utf-8")
         return rules
 
@@ -239,34 +297,39 @@ class Brain:
         model = self.cfg["strategist_model"]
         response = self.client.beta.messages.create(
             model=model,
-            max_tokens=8000,
+            max_tokens=self.cfg.get("strategist_max_tokens", 8000),
             betas=["server-side-fallback-2026-07-01"],
             fallbacks="default",
-            system=self.strategist_system,
+            system=[{"type": "text", "text": self.strategist_system, "cache_control": {"type": "ephemeral"}}],
             output_config={"effort": self.cfg.get("strategist_effort", "medium"),
                            "format": {"type": "json_schema", "schema": STRATEGY_SCHEMA}},
             messages=[{"role": "user", "content": [
                 {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": image_b64}},
-                {"type": "text", "text": json.dumps(state, indent=1)},
+                {"type": "text", "text": _compact(state)},
             ]}],
         )
-        cost = self.costs.add(model, response.usage)
-        return json.loads(_text(response)), cost
+        cost = self.costs.add(model, response.usage, "strategist")
+        return _json(response), cost
 
     # --- tactician --------------------------------------------------------
 
     def tactics(self, image_b64, state):
         self.costs.check()
         model = self.cfg["tactician_model"]
+        output_config = {"format": {"type": "json_schema", "schema": TACTIC_SCHEMA}}
+        if self.cfg.get("tactician_effort"):  # not supported by claude-haiku-4-5
+            output_config["effort"] = self.cfg["tactician_effort"]
         response = self.client.messages.create(
             model=model,
-            max_tokens=1200,
+            max_tokens=self.cfg.get("tactician_max_tokens", 1200),
+            thinking={"type": self.cfg.get("tactician_thinking", "disabled")},
+            # The system prompt is identical on every call, so it's read from cache at 0.1x.
             system=[{"type": "text", "text": self.tactician_system, "cache_control": {"type": "ephemeral"}}],
-            output_config={"format": {"type": "json_schema", "schema": TACTIC_SCHEMA}},
+            output_config=output_config,
             messages=[{"role": "user", "content": [
                 {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": image_b64}},
-                {"type": "text", "text": json.dumps(state, indent=1)},
+                {"type": "text", "text": _compact(state)},
             ]}],
         )
-        cost = self.costs.add(model, response.usage)
-        return json.loads(_text(response)), cost
+        cost = self.costs.add(model, response.usage, "tactician")
+        return _json(response), cost

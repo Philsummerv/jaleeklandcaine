@@ -67,9 +67,10 @@ def cmd_plan_once(args):
     print(f"\nStrategist (${c1:.4f}):\n" + json.dumps(strategy, indent=2))
     t0 = time.monotonic()
     tactic, c2 = brain.tactics(img, {"objective": strategy["objective"], "done_when": strategy["done_when"],
-                                     "strategist_hints": strategy["hints"], "executor": {"doing_now": "idle"}})
+                                     "strategist_hints": strategy["hints"], "plan_seconds": "2-5",
+                                     "executor": {"doing_now": "idle"}})
     print(f"\nTactician ({time.monotonic() - t0:.1f}s, ${c2:.4f}):\n" + json.dumps(tactic, indent=2))
-    print(f"\nTotal: ${costs.total:.4f}")
+    print(f"\nTotal: ${costs.total:.4f}\n  {costs.summary()}")
 
 
 def cmd_calibrate(args):

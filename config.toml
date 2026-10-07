@@ -1,8 +1,17 @@
 # --- Claude -------------------------------------------------------------
-tactician_model = "claude-haiku-4-5"     # fast "hands", called ~once a second
-strategist_model = "claude-opus-5-5"     # slow "mind", picks objectives
-strategist_effort = "medium"             # low | medium | high
-strategist_interval_seconds = 30
+# Each line notes the previous default ("was ...") so you can go back to it.
+# The status line every 10 s shows spend, calls/min and tokens per call per component.
+
+tactician_model = "claude-haiku-5-5"     # fast "hands". was "claude-haiku-4-5" (10x the price per token)
+tactician_effort = "low"                 # low | medium | high. Set to "" for claude-haiku-4-5 (no effort support)
+tactician_thinking = "disabled"          # "disabled" keeps replies fast; "adaptive" lets it think (slower, raise max_tokens)
+tactician_max_tokens = 600               # was 1200; a plan is ~150-250 tokens
+
+strategist_model = "claude-opus-5-5"     # slow "mind", picks objectives. "claude-sonnet-5-5" is about half the price
+strategist_effort = "low"                # low | medium | high. was "medium"
+strategist_max_tokens = 4000             # was 8000; a ceiling only, a cut-off reply is retried
+strategist_interval_seconds = 120        # fallback timer. was 30. It's also called when an objective
+                                         # completes, gets stuck, or the flee reflex fires.
 
 # Tactician pacing: it calls Claude again when less than `lookahead` seconds of
 # plan are left, but never more often than min_interval and at least every max_interval.
@@ -10,13 +19,28 @@ tactician_min_interval = 0.8
 tactician_lookahead_seconds = 1.5
 tactician_max_interval = 4.0
 
+# "adaptive": ask for longer plans and call less often when calm (no alerts, reflexes or
+# stuck reports in the last few seconds); back to short, fast plans when anything happens.
+# "fixed": the old behaviour (2-5 s plans, max_interval always).
+tactician_pacing = "adaptive"
+tactician_calm_plan_seconds = [4, 8]
+tactician_urgent_plan_seconds = [2, 4]
+tactician_calm_max_interval = 10.0
+
+# Skip a call when the screen hasn't changed since the last one (e.g. standing still, mining).
+# Danger alerts and new objectives always get a call. Set false to disable.
+tactician_skip_static_frames = true
+tactician_static_threshold = 3.0         # mean pixel change (0-255) on a 32x18 thumbnail that counts as "changed"
+tactician_static_interval = 3.0          # with an unchanged screen, call at most this often even if the plan ran out
+
 # The bot stops itself once this much has been spent in one session.
 max_dollars_per_session = 5.00
 
 # --- Game / screen ---------------------------------------------------------
 window_title = "Minecraft"
-screenshot_width = 1024       # screenshots are shrunk to this width before sending
-jpeg_quality = 70
+screenshot_width = 768        # screenshots are shrunk to this width before sending. was 1024.
+                              # Image tokens ~ width x height / 750: 768x432 = ~440 tokens, 1024x576 = ~790.
+jpeg_quality = 70             # doesn't affect token cost (that depends on pixel size), only upload size
 
 # Mouse pixels per degree of camera turn. Run `python -m bot test-input` and adjust
 # until the 360 turn ends where it started. Depends on your in-game sensitivity.
