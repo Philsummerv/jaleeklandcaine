@@ -50,3 +50,18 @@ def looks_stuck(doing_now, change, threshold):
     into a wall or treading the floor of a pit. Mining barely moves the view either, so
     only movement counts."""
     return bool(doing_now) and doing_now.startswith("walk") and change < threshold
+
+
+def settled_damage(recent, baseline, threshold, spread):
+    """The health a hit settled at, or None if this isn't one.
+
+    Real damage steps down and stays: a hit lands, then the bar holds its new value. A
+    misread bounces - readings were seen swinging 39%, 81%, 36% within a second, all of
+    them below the old value, so "it kept falling" alone would believe them. Requiring the
+    recent readings to agree with each other separates the two."""
+    if len(recent) < recent.maxlen or baseline is None:
+        return None
+    if max(recent) - min(recent) > spread:
+        return None
+    settled = sorted(recent)[len(recent) // 2]
+    return settled if settled < baseline - threshold else None

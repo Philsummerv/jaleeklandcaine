@@ -11,7 +11,8 @@ import anthropic
 
 from .brain import BadResponse, Brain, BudgetExceeded, CostTracker, parse_manifesto
 from .executor import Executor
-from .pacing import call_reason, frame_change, frame_signature, looks_stuck, should_skip
+from .pacing import (call_reason, frame_change, frame_signature, looks_stuck, settled_damage,
+                     should_skip)
 from .screen import HudReader, Screen, encode_jpeg
 
 MAX_SECONDS = 6.0
@@ -153,7 +154,7 @@ class Bot:
         last_sig = None
         no_hud_frames = 0
         no_hud_cooldown = 0.0
-        damage_frames = 0
+        recent_health = collections.deque(maxlen=3)
         saved_damage_frame = False
         stuck_frames = 0
         stuck_cooldown = 0.0
@@ -187,25 +188,23 @@ class Bot:
             rules = self.rules  # re-read each pass: the manifesto can change while running
             health = hud["health"]
 
-            # A drop has to hold for a few frames. The readings were seen swinging between
-            # 36% and 81% within a second, which is not something health can do, and each
-            # bounce was announced as an attack.
-            dropped = (health is not None and prev_health is not None
-                       and health < prev_health - c.get("damage_threshold", 0.04))
-            damage_frames = damage_frames + 1 if dropped else 0
-            if damage_frames >= c.get("damage_confirm_frames", 3):
-                damage_frames = 0
+            if health is not None:
+                recent_health.append(health)
+            hit = settled_damage(recent_health, prev_health, c.get("damage_threshold", 0.04),
+                                 c.get("damage_spread", 0.12))
+            if hit is not None:
+                prev_health = hit
                 self.last_damage = now
                 if not saved_damage_frame and c.get("save_damage_frame", True):
                     saved_damage_frame = True
                     self._save_frame(frame, "damage_trigger.png")
                 self.log(f"   (hearts {hud['raw_hearts']} of {self.hud_reader.max_hearts} px, "
                          f"food {hud['raw_food']} of {self.hud_reader.max_food} px)")
-                self.alert(f"took damage, health now {health:.0%}"
+                self.alert(f"took damage, health now {hit:.0%}"
                            + ("" if self.last_observation and "zombie" in self.last_observation.lower()
                               else ". If you can't see what hit you it is probably behind you: look yaw 180"))
-            if not dropped:
-                prev_health = health
+            elif health is not None and (prev_health is None or health > prev_health):
+                prev_health = health      # healing, or the first reading
 
             # A frame or two below the line is usually a misread, not a wounded player.
             low_health_frames = (low_health_frames + 1 if health is not None

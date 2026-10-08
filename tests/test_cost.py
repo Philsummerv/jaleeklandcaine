@@ -533,29 +533,37 @@ class TechniquesFile(unittest.TestCase):
 
 class DamageConfirmation(unittest.TestCase):
     """Readings were seen swinging 39% -> 81% -> 36% inside one second, each bounce
-    announced as an attack. Health cannot do that; a drop has to hold to be believed."""
+    announced as an attack. Health cannot do that."""
 
     @staticmethod
-    def alerts_for(readings, confirm=3, threshold=0.04):
-        """Replay a sequence of health readings through the damage rule."""
-        alerts, previous, run = [], None, 0
+    def alerts_for(readings, spread=0.12, threshold=0.04):
+        """Replay health readings through the damage rule, as the reflex loop does."""
+        from bot.pacing import settled_damage
+        recent, baseline, alerts = collections.deque(maxlen=3), None, []
         for health in readings:
-            dropped = previous is not None and health < previous - threshold
-            run = run + 1 if dropped else 0
-            if run >= confirm:
-                run = 0
-                alerts.append(health)
-            if not dropped:
-                previous = health
+            recent.append(health)
+            hit = settled_damage(recent, baseline, threshold, spread)
+            if hit is not None:
+                baseline = hit
+                alerts.append(round(hit, 2))
+            elif baseline is None or health > baseline:
+                baseline = health
         return alerts
 
     def test_a_bouncing_reading_raises_nothing(self):
-        bounce = [1.0, 0.39, 0.81, 0.36, 0.85, 0.39, 0.81]
-        self.assertEqual(self.alerts_for(bounce), [])
+        """The readings from the run that prompted this, verbatim."""
+        self.assertEqual(self.alerts_for([1.0, 0.39, 0.81, 0.36, 0.85, 0.39, 0.81]), [])
 
-    def test_a_real_run_of_damage_still_registers(self):
-        falling = [1.0, 0.94, 0.88, 0.80, 0.72, 0.64]
-        self.assertTrue(self.alerts_for(falling), "a sustained fall is a real hit")
+    def test_a_hit_that_settles_registers(self):
+        """A zombie takes a bite: the bar steps down and holds there."""
+        self.assertEqual(self.alerts_for([1.0, 1.0, 1.0, 0.86, 0.86, 0.86]), [0.86])
+
+    def test_several_hits_each_register(self):
+        readings = [1.0] * 3 + [0.86] * 3 + [0.70] * 3 + [0.56] * 3
+        self.assertEqual(self.alerts_for(readings), [0.86, 0.70, 0.56])
 
     def test_healing_raises_nothing(self):
-        self.assertEqual(self.alerts_for([0.4, 0.5, 0.6, 0.7, 0.8, 1.0]), [])
+        self.assertEqual(self.alerts_for([0.4] * 3 + [0.6] * 3 + [0.8] * 3 + [1.0] * 3), [])
+
+    def test_a_single_bad_frame_raises_nothing(self):
+        self.assertEqual(self.alerts_for([1.0, 1.0, 1.0, 0.1, 1.0, 1.0, 1.0]), [])
