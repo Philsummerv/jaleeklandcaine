@@ -40,6 +40,13 @@ lava_max_backoffs = 3         # after this many lava triggers in the window, sto
 lava_window_seconds = 20      # and hand the decision to the tactician instead
 save_lava_frame = true        # save lava_trigger.png the first time it fires, for tuning
 
+# Stuck detection: walking with the view not changing means a wall or a pit. Local and free -
+# it reuses the frame comparison the tactician pacing already does.
+stuck_detect = true
+stuck_seconds = 1.5           # how long to walk with a static view before saying so
+stuck_change_threshold = 1.5  # mean pixel change (0-255) on a 32x18 thumbnail that counts as moving
+stuck_cooldown_seconds = 6
+
 # The bot stops itself once this much has been spent in one session.
 max_dollars_per_session = 5.00
 

@@ -234,3 +234,23 @@ class HudMasks(unittest.TestCase):
         for _ in range(3):
             reader.read(spike)
         self.assertGreater(reader.max_hearts, base, "a sustained higher reading should count")
+
+
+class StuckDetection(unittest.TestCase):
+    def test_only_walking_counts(self):
+        from bot.pacing import looks_stuck
+        self.assertTrue(looks_stuck("walk direction=forward seconds=2", 0.2, 1.5))
+        self.assertFalse(looks_stuck("walk direction=forward seconds=2", 9.0, 1.5))  # moving fine
+        self.assertFalse(looks_stuck("mine seconds=4", 0.2, 1.5))   # mining barely moves the view
+        self.assertFalse(looks_stuck("idle", 0.2, 1.5))
+        self.assertFalse(looks_stuck("", 0.2, 1.5))
+
+    def test_walking_into_a_wall_reads_as_stuck(self):
+        """A wall fills the view, so consecutive frames are near-identical even though the
+        bot is holding W. Open ground shifts the whole frame."""
+        from bot.pacing import frame_change, frame_signature
+        rng = np.random.default_rng(3)
+        wall = np.repeat(np.repeat(rng.integers(110, 130, (4, 4, 3), dtype=np.uint8), 300, 0), 500, 1)
+        self.assertLess(frame_change(frame_signature(wall), frame_signature(wall.copy())), 1.5)
+        moved = np.roll(wall, 120, axis=1)
+        self.assertLess(frame_change(frame_signature(wall), frame_signature(moved)), 1.5)  # flat wall

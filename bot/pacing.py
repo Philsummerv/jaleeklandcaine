@@ -43,3 +43,10 @@ def should_skip(reason, change, since, threshold, static_interval):
     if reason == "wake" or change >= threshold:
         return False
     return reason == "max" or since < static_interval
+
+
+def looks_stuck(doing_now, change, threshold):
+    """True when the executor is walking but the view isn't changing: the bot is pushing
+    into a wall or treading the floor of a pit. Mining barely moves the view either, so
+    only movement counts."""
+    return bool(doing_now) and doing_now.startswith("walk") and change < threshold

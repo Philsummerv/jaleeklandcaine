@@ -11,7 +11,7 @@ import anthropic
 from . import winapi
 from .brain import BadResponse, Brain, BudgetExceeded, CostTracker
 from .executor import Executor
-from .pacing import call_reason, frame_change, frame_signature, should_skip
+from .pacing import call_reason, frame_change, frame_signature, looks_stuck, should_skip
 from .screen import HudReader, Screen, encode_jpeg
 
 MAX_SECONDS = 6.0
@@ -141,6 +141,10 @@ class Bot:
         low_health_frames = 0
         lava_fires = collections.deque(maxlen=12)
         saved_lava_frame = False
+        last_sig = None
+        stuck_frames = 0
+        stuck_cooldown = 0.0
+        stuck_needed = max(int(c.get("stuck_seconds", 1.5) / 0.1), 1)
         while self.running:
             time.sleep(0.1)
             try:
@@ -191,6 +195,25 @@ class Bot:
                     # over and over has walked the bot into holes. Hand it to the tactician.
                     self.alert(f"lava detector has fired {recent}x ({hud['lava']:.0%} of view); not backing "
                                "off again. If this is orange rock and not lava, say so and move on")
+
+            # Walking without the view changing: against a wall, or in a pit.
+            if c.get("stuck_detect", True):
+                sig = frame_signature(frame)
+                change = frame_change(sig, last_sig)
+                last_sig = sig
+                if looks_stuck(self.executor.snapshot()["doing_now"], change,
+                               c.get("stuck_change_threshold", 1.5)):
+                    stuck_frames += 1
+                else:
+                    stuck_frames = 0
+                if stuck_frames >= stuck_needed and now > stuck_cooldown:
+                    stuck_frames = 0
+                    stuck_cooldown = now + c.get("stuck_cooldown_seconds", 6)
+                    self.last_stuck = now
+                    self.executor.set_plan([{"type": "jump"}], source="reflex")
+                    self.alert("not moving although walking: you are against a wall or in a pit. "
+                               "Turn and go another way, or climb out - jump onto a step, or place a "
+                               "block under yourself while jumping if you have blocks")
 
             hunger = hud["hunger"]
             if hunger is not None and hunger < rules["eat_below_hunger"] and now > hunger_nag:
