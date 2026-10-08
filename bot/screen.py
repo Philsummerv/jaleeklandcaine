@@ -83,22 +83,45 @@ def encode_jpeg(frame, width, quality=70):
     return base64.standard_b64encode(buf.getvalue()).decode("ascii")
 
 
+def icon_runs(mask):
+    """The contiguous columns of each lit icon. Measured on a real bar, the ten hearts come
+    out as ten runs of exactly 297 px and the ten drumsticks as ten of 54, so the icons
+    separate cleanly and there is no need for the box to line up with them."""
+    lit = mask.any(axis=0)
+    runs, start = [], None
+    for i, on in enumerate(lit):
+        if on and start is None:
+            start = i
+        elif not on and start is not None:
+            runs.append((start, i))
+            start = None
+    if start is not None:
+        runs.append((start, len(lit)))
+    return runs
+
+
 def bar_level(mask, icons=10, min_icon_pixels=20):
     """How full a bar is, read from one frame and nothing else.
 
-    The bar is always `icons` icons wide, so splitting the box into that many columns and
-    comparing them to each other gives an absolute reading: the fullest icon in this frame
-    is what a full one looks like, whatever the resolution or the GUI scale. No history and
-    no calibration, which matters because a bot that starts wounded never sees a full bar -
-    one run took 6.5 hearts as its reference and reported 76% health at about 50%.
-    """
-    width = mask.shape[1]
-    edges = [round(i * width / icons) for i in range(icons + 1)]
-    counts = [int(mask[:, edges[i]:edges[i + 1]].sum()) for i in range(icons)]
-    fullest = max(counts)
+    The fullest icon present is what a full one looks like, so the reading is absolute:
+    no calibration, no history, and correct at any resolution or GUI scale. That matters
+    because a bot that starts wounded never sees a full bar - one run took 6.5 hearts as
+    its reference and reported 76% health at about half.
+
+    Reading the icons rather than slicing the box into equal columns also means the box
+    only has to contain the bar, not match it: an over-wide box put a heart across two
+    columns and read a full bar as 80%.
+
+    The one soft spot is a bar down to its last half icon, which reads as a whole one,
+    since there is nothing fuller in the frame to compare against."""
+    runs = icon_runs(mask)
+    if not runs:
+        return None, []
+    sums = [int(mask[:, a:b].sum()) for a, b in runs]
+    fullest = max(sums)
     if fullest < min_icon_pixels:
-        return None, counts
-    return min(sum(counts) / (icons * fullest), 1.0), counts
+        return None, sums
+    return min(sum(sums) / (icons * fullest), 1.0), sums
 
 
 def _median(values):

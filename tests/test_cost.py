@@ -587,3 +587,44 @@ class DamageConfirmation(unittest.TestCase):
         plan, dropped = clean_plan([{"type": "gui_click", "button": "left"}])
         self.assertEqual(plan, [])
         self.assertEqual(dropped, ["gui_click without x/y"])
+
+
+class BarReadingFromRealPixels(unittest.TestCase):
+    """Numbers measured off a real 1920x991 Bedrock HUD: ten hearts are ten runs of 297 px
+    each, ten drumsticks ten runs of 54. The box is wider than the bar in both cases."""
+
+    @staticmethod
+    def bar(lit, per_icon_width=21, gap=6, height=14, pad=30):
+        """A bar of ten icons with `lit` of them drawn, inside a box wider than the bar -
+        which is what the configured regions actually give."""
+        width = pad + 10 * (per_icon_width + gap) + pad
+        a = np.zeros((height, width), bool)
+        for i in range(10):
+            on = min(max(lit - i, 0), 1)
+            if on:
+                x = pad + i * (per_icon_width + gap)
+                a[:, x:x + max(int(per_icon_width * on), 1)] = True
+        return a
+
+    def test_a_full_bar_reads_full_despite_a_loose_box(self):
+        """Slicing the box into ten equal columns put an icon across two of them and read a
+        full bar as 80%. Reading the icons themselves does not care how wide the box is."""
+        from bot.screen import bar_level
+        self.assertAlmostEqual(bar_level(self.bar(10))[0], 1.0, places=2)
+        self.assertAlmostEqual(bar_level(self.bar(10, pad=120))[0], 1.0, places=2)
+
+    def test_partial_bars(self):
+        from bot.screen import bar_level
+        for lit, expected in ((5.5, 0.55), (3, 0.30), (1, 0.10)):
+            self.assertAlmostEqual(bar_level(self.bar(lit))[0], expected, places=2,
+                                   msg=f"{lit} icons")
+
+    def test_an_empty_bar_reads_as_unknown(self):
+        from bot.screen import bar_level
+        level, _ = bar_level(self.bar(0))
+        self.assertIsNone(level, "nothing lit means nothing to measure against")
+
+    def test_icons_are_found_as_separate_runs(self):
+        from bot.screen import icon_runs
+        self.assertEqual(len(icon_runs(self.bar(10))), 10)
+        self.assertEqual(len(icon_runs(self.bar(4))), 4)
