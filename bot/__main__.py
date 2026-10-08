@@ -52,6 +52,17 @@ def cmd_run(args):
     Bot(cfg, statements, dry_run=args.dry_run).run()
 
 
+def plan_countdown(screen, seconds):
+    """Give the user time to get back in-world before the screenshot.
+    No input is sent by plan-once, so an unfocused window is a warning, not an error."""
+    print(f"Switch to Minecraft and press Esc to resume play. Screenshot in {seconds}s...")
+    for i in range(seconds, 0, -1):
+        print(f"  {i}", flush=True)
+        time.sleep(1)
+    if not screen.focused():
+        print("Note: Minecraft isn't the focused window, so the screenshot may show whatever is on top of it.")
+
+
 def cmd_plan_once(args):
     from .brain import Brain, CostTracker
     from .screen import Screen, encode_jpeg
@@ -65,6 +76,8 @@ def cmd_plan_once(args):
     rules = brain.compile_manifesto(statements, ROOT / cfg.get("rules_cache", ".manifesto_rules.json"))
     print("Compiled rules:\n" + json.dumps(rules, indent=2))
     brain.set_manifesto(rules)
+    if args.wait:
+        plan_countdown(screen, args.wait)
     img = encode_jpeg(screen.grab(), cfg["screenshot_width"], cfg.get("jpeg_quality", 70))
     strategy, c1 = brain.strategize(img, {"current_objective": None, "previous_objectives": []})
     print(f"\nStrategist (${c1:.4f}):\n" + json.dumps(strategy, indent=2))
@@ -143,7 +156,9 @@ def main():
     sub = p.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("run", help="play")
     r.add_argument("--dry-run", action="store_true", help="plan with Claude but send no input")
-    sub.add_parser("plan-once", help="one planning round, printed, no input")
+    po = sub.add_parser("plan-once", help="one planning round, printed, no input")
+    po.add_argument("--wait", type=int, default=0, metavar="SECONDS",
+                    help="count down before the screenshot, so you can get back in-world first")
     sub.add_parser("calibrate", help="check the HUD reader regions")
     sub.add_parser("test-input", help="check controls and mouse sensitivity")
     args = p.parse_args()
