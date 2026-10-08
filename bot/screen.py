@@ -95,17 +95,22 @@ def heart_mask(px):
 
 
 def food_mask(px):
-    """Drumstick meat: a tan brown, measured as rgb(144,112,64), (128,112,64),
-    (160,128,64) and (128,96,64) on a 1920x991 Bedrock HUD.
+    """Hunger drumsticks, keyed on colours measured from a raw 1920x991 HUD crop.
 
-    Red minus green is the discriminator. The drumsticks sit around 16-32, while the
-    badlands terracotta behind them - rgb(192,112,64) and (176,96,64) - is around 80.
-    An earlier version required r - g > 40, which selected the terrain and rejected
-    every drumstick."""
+    Two parts of the icon: the red meat, rgb(208,32,32), and the cooked brown,
+    rgb(144,96,64). Validated against the hearts crop alongside it, which shows the same
+    terrain with no drumsticks in it: the brown band matches 824 px here and exactly 0
+    there, so it is icon, not landscape. Badlands terracotta, rgb(192,112,64) and
+    (176,96,64), sits just outside the brown band and is rejected.
+
+    An earlier version keyed on r - g > 40, which matched the terracotta and no drumstick
+    at all; its replacement fitted the sunlit terrain between the icons. Both were tuned
+    from rescaled screenshots rather than raw pixels. Retune from calibration_hud.png.
+    """
     r, g, b = px[..., 0], px[..., 1], px[..., 2]
-    rg = r - g
-    return ((r >= 128) & (r <= 190) & (g >= 96) & (g <= 145) & (b <= 90)
-            & (rg >= 8) & (rg <= 42) & (g - b >= 20))
+    meat = (r >= 176) & (g <= 72) & (b <= 72)
+    cooked = (r >= 144) & (r <= 175) & (g >= 96) & (g <= 127) & (b >= 64) & (b <= 95)
+    return meat | cooked
 
 
 def lava_mask(px):

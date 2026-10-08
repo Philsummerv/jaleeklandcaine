@@ -162,19 +162,22 @@ class HudMasks(unittest.TestCase):
             self.assertFalse(self.heart(self.px(*rgb))[0, 0], name)
 
     def test_food_mask_matches_drumsticks_not_terrain(self):
-        """Colours measured off a real 1920x991 Bedrock HUD in badlands, where the
-        terracotta behind the bar is the thing most easily mistaken for cooked meat."""
-        for name, rgb in (("drumstick mid", (152, 120, 72)), ("drumstick dark", (136, 120, 72)),
-                          ("drumstick light", (168, 136, 72)), ("drumstick shadow", (136, 104, 72))):
+        """Colours measured from a raw HUD crop. The brown band was validated against the
+        hearts crop beside it - same terrain, no drumsticks - where it matched 0 pixels."""
+        for name, rgb in (("red meat", (208, 32, 32)), ("cooked brown", (144, 96, 64)),
+                          ("cooked brown, light", (160, 112, 80))):
             self.assertTrue(self.food(self.px(*rgb))[0, 0], name)
         for name, rgb in (("terracotta behind bar", (192, 112, 64)), ("dark terracotta", (176, 96, 64)),
-                          ("red sand", (190, 105, 60)), ("orange terracotta", (161, 83, 37)),
-                          ("heart red", (240, 16, 16))):
+                          ("red sand", (190, 105, 60)), ("terracotta", (152, 94, 67)),
+                          ("orange terracotta", (161, 83, 37)), ("shadowed brown", (96, 48, 32)),
+                          ("dirt", (134, 96, 67)), ("grass", (90, 140, 60))):
             self.assertFalse(self.food(self.px(*rgb))[0, 0], name)
 
-    def test_masks_do_not_overlap(self):
-        self.assertFalse(self.heart(self.px(152, 120, 72))[0, 0])   # drumstick is not a heart
-        self.assertFalse(self.food(self.px(240, 16, 16))[0, 0])     # heart is not a drumstick
+    def test_cooked_brown_is_not_mistaken_for_a_heart(self):
+        # The two bars share a red, which is harmless: each mask only ever sees its own
+        # box. What must not happen is the brown of a drumstick reading as health.
+        self.assertFalse(self.heart(self.px(144, 96, 64))[0, 0])
+        self.assertFalse(self.heart(self.px(160, 112, 80))[0, 0])
 
     def test_confirmed_max_ignores_a_single_bright_frame(self):
         from bot.screen import HudReader
