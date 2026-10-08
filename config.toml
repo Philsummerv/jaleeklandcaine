@@ -33,6 +33,13 @@ tactician_skip_static_frames = true
 tactician_static_threshold = 3.0         # mean pixel change (0-255) on a 32x18 thumbnail that counts as "changed"
 tactician_static_interval = 3.0          # with an unchanged screen, call at most this often even if the plan ran out
 
+# Reflex safety. The lava detector keys on colour, and bright orange rock (badlands)
+# can read as lava; backing away repeatedly has walked the bot into holes.
+flee_confirm_frames = 3       # health must read low this many frames running before fleeing
+lava_max_backoffs = 3         # after this many lava triggers in the window, stop backing off
+lava_window_seconds = 20      # and hand the decision to the tactician instead
+save_lava_frame = true        # save lava_trigger.png the first time it fires, for tuning
+
 # The bot stops itself once this much has been spent in one session.
 max_dollars_per_session = 5.00
 
@@ -60,5 +67,7 @@ rules_cache = ".manifesto_rules.json"
 health_region = [0.355, 0.872, 0.497, 0.912]   # was [0.30, 0.83, 0.50, 0.935]
 hunger_region = [0.503, 0.872, 0.645, 0.912]   # was [0.50, 0.83, 0.70, 0.935]
 max_confirm_frames = 3        # a higher "full bar" reading must hold this many frames to count
+smooth_frames = 5             # readings are the median of this many frames (reflexes run at 10 Hz),
+                              # so a menu or screen transition can't read as a dying player
 lava_region   = [0.30, 0.35, 0.70, 0.85]
 lava_fraction = 0.12          # share of lava-colored pixels ahead that triggers the reflex

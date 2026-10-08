@@ -137,6 +137,7 @@ ACTION_SCHEMA = {
         "seconds": {"type": "number"},
         "sprint": {"type": "boolean"},
         "jump": {"type": "boolean"},
+        "sneak": {"type": "boolean"},
         "yaw": {"type": "number"},
         "pitch": {"type": "number"},
         "slot": {"type": "integer"},
@@ -234,7 +235,7 @@ Manifesto (priority order):
 4. TEMPERAMENT: {temperament}
 
 Actions (JSON objects, executed in order):
-- walk: direction forward|back|left|right, seconds, optional sprint, jump (hold jump, for climbing 1-block steps), optional yaw/pitch to turn smoothly WHILE walking.
+- walk: direction forward|back|left|right, seconds, optional sprint, jump (hold jump, for climbing 1-block steps), sneak (move slowly without falling off edges - use it near any drop), optional yaw/pitch to turn smoothly WHILE walking.
 - look: yaw (degrees, + = right) and pitch (degrees, + = up, - = down). Turning 90 left is yaw -90. Looking straight down at your feet is about pitch -90 from level.
 - mine: hold left click on the block under the crosshair until it breaks (seconds = max time, default 4). Aim first with look.
 - attack: click times to hit the mob/entity under the crosshair.
@@ -242,6 +243,8 @@ Actions (JSON objects, executed in order):
 - jump, hotbar (slot 1-9), sneak (seconds; prevents falling off edges), wait (seconds).
 - key: inventory | drop | escape. Only open menus when really needed.
 - gui_click: x, y as 0-1 fractions of the screenshot, button left|right; only when a menu is open.
+
+Keep the horizon in view while travelling, pitch roughly level: you cannot spot trees, mobs or cliffs while staring at your feet. Look down only to mine or place a block right at your feet, then look back up. If the whole screen is one texture you are probably facing into a wall or a hole, so back out and raise your view.
 
 Tips: the crosshair is at the screenshot center; a block outline shows what you're aiming at. Mined blocks drop items you pick up by walking over them. Prefer 3-8 actions. If you see lava, a cliff, or a hostile mob, deal with it first. Read the HUD: hearts bottom-left above the hotbar, hunger drumsticks bottom-right.
 

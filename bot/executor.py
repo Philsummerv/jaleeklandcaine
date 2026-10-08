@@ -207,6 +207,8 @@ class Executor(threading.Thread):
                 keys.add("ctrl")
             if a.get("jump"):
                 keys.add("space")
+            if a.get("sneak"):
+                keys.add("shift")  # sneaking stops you walking off a ledge
             self._hold(keys)
             done = self._run_for(float(a.get("seconds", 1.0)), a.get("yaw") or 0.0, a.get("pitch") or 0.0)
             if a.get("jump"):

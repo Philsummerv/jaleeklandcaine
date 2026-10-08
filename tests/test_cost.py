@@ -172,18 +172,43 @@ class HudMasks(unittest.TestCase):
                           ("lava", (255, 120, 0)), ("grass", (90, 140, 60))):
             self.assertFalse(self.food(self.px(*rgb))[0, 0], name)
 
-    def test_bars_read_proportionally(self):
-        """Measured: 2970 px at ten hearts, 1656 at five and a half - 55.8% against 55%."""
+    def reader(self, **over):
         from bot.screen import HudReader
         cfg = {"health_region": [0, 0, 1, 1], "hunger_region": [0, 0, 1, 1],
-               "lava_region": [0, 0, 1, 1], "min_calibration_pixels": 1, "max_confirm_frames": 1}
-        reader = HudReader(cfg)
-        bar = np.zeros((10, 200, 3), np.uint8)
-        bar[:, :100] = (240, 16, 16)
-        reader.read(bar)
-        half = bar.copy()
-        half[:, 55:] = (96, 48, 32)        # four and a half hearts worth gone, terrain behind
-        self.assertAlmostEqual(reader.read(half)["health"], 0.55, places=2)
+               "lava_region": [0, 0, 1, 1], "min_calibration_pixels": 1,
+               "max_confirm_frames": 1, "smooth_frames": 5}
+        cfg.update(over)
+        return HudReader(cfg)
+
+    @staticmethod
+    def bar(filled):
+        """A 200px-wide strip with `filled` of it in heart red, the rest terrain."""
+        a = np.zeros((10, 200, 3), np.uint8)
+        a[:, :] = (96, 48, 32)
+        a[:, :filled] = (240, 16, 16)
+        return a
+
+    def test_bars_read_proportionally(self):
+        """Measured: 2970 px at ten hearts, 1656 at five and a half - 55.8% against 55%."""
+        reader = self.reader()
+        for _ in range(5):
+            reader.read(self.bar(100))
+        for _ in range(5):
+            reading = reader.read(self.bar(55))
+        self.assertAlmostEqual(reading["health"], 0.55, places=2)
+
+    def test_single_bad_frame_is_ignored(self):
+        """A menu or a screen transition hides the HUD for a frame or two. That must not
+        read as a player at zero health, which is what sets the flee reflex off."""
+        reader = self.reader()
+        for _ in range(5):
+            reader.read(self.bar(100))
+        blank = np.zeros((10, 200, 3), np.uint8)
+        for i in range(2):
+            self.assertEqual(reader.read(blank)["health"], 1.0, f"frame {i + 1} should be ignored")
+        third = reader.read(blank)
+        self.assertEqual(third["health"], 0.0, "a sustained reading should still get through")
+        self.assertFalse(third["hud_visible"], "both bars empty means the HUD is not on screen")
 
     def test_cooked_brown_is_not_mistaken_for_a_heart(self):
         # The two bars share a red, which is harmless: each mask only ever sees its own

@@ -83,6 +83,11 @@ def encode_jpeg(frame, width, quality=70):
     return base64.standard_b64encode(buf.getvalue()).decode("ascii")
 
 
+def _median(values):
+    ordered = sorted(values)
+    return ordered[len(ordered) // 2]
+
+
 def _crop(frame, region):
     h, w = frame.shape[:2]
     x0, y0, x1, y1 = region
@@ -127,6 +132,9 @@ class HudReader:
         n = max(int(cfg.get("max_confirm_frames", 3)), 1)
         self._hearts_seen = collections.deque(maxlen=n)
         self._food_seen = collections.deque(maxlen=n)
+        m = max(int(cfg.get("smooth_frames", 3)), 1)
+        self._hearts_recent = collections.deque(maxlen=m)
+        self._food_recent = collections.deque(maxlen=m)
 
     @staticmethod
     def _confirm(current_max, seen):
@@ -139,16 +147,26 @@ class HudReader:
         return max(current_max, min(seen))
 
     def read(self, frame):
+        """Readings are the median of the last few frames. A single frame is not
+        trustworthy: anything that briefly hides the HUD - a menu, a screen transition -
+        drops both bars to nothing at once, which would otherwise read as a player about
+        to die and set the flee reflex off at full health."""
         hearts = int(heart_mask(_crop(frame, self.cfg["health_region"])).sum())
         food = int(food_mask(_crop(frame, self.cfg["hunger_region"])).sum())
         lava = float(lava_mask(_crop(frame, self.cfg["lava_region"])).mean())
-        self._hearts_seen.append(hearts)
-        self._food_seen.append(food)
+        self._hearts_recent.append(hearts)
+        self._food_recent.append(food)
+        hearts_s = _median(self._hearts_recent)
+        food_s = _median(self._food_recent)
+        self._hearts_seen.append(hearts_s)
+        self._food_seen.append(food_s)
         self.max_hearts = self._confirm(self.max_hearts, self._hearts_seen)
         self.max_food = self._confirm(self.max_food, self._food_seen)
-        health = min(hearts / self.max_hearts, 1.0) if self.max_hearts >= self.min_pixels else None
-        hunger = min(food / self.max_food, 1.0) if self.max_food >= self.min_pixels else None
-        return {"health": health, "hunger": hunger, "lava": lava,
+        health = min(hearts_s / self.max_hearts, 1.0) if self.max_hearts >= self.min_pixels else None
+        hunger = min(food_s / self.max_food, 1.0) if self.max_food >= self.min_pixels else None
+        # Both bars vanishing together means the HUD was not on screen, not a dying player.
+        hud_visible = not (hearts_s == 0 and food_s == 0)
+        return {"health": health, "hunger": hunger, "lava": lava, "hud_visible": hud_visible,
                 "raw_hearts": hearts, "raw_food": food}
 
 

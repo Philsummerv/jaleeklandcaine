@@ -107,6 +107,16 @@ class Bot:
                 and now - self.last_stuck > 10
                 and now - self.objective_started > 5)
 
+    def _save_frame(self, frame, name):
+        """Keep the frame that set a reflex off, so the detector can be tuned on real
+        pixels rather than on a guess about what the bot was looking at."""
+        try:
+            from PIL import Image
+            Image.fromarray(frame).save(name)
+            self.log(f"saved {name} (the frame that triggered this)")
+        except Exception as e:
+            self.log(f"could not save {name}: {e}")
+
     def _spawn(self, fn):
         def guarded():
             try:
@@ -125,8 +135,12 @@ class Bot:
 
     def reflex_loop(self):
         rules = self.rules
+        c = self.cfg
         prev_health = None
         flee_cooldown = lava_cooldown = hunger_nag = 0.0
+        low_health_frames = 0
+        lava_fires = collections.deque(maxlen=12)
+        saved_lava_frame = False
         while self.running:
             time.sleep(0.1)
             try:
@@ -135,7 +149,7 @@ class Bot:
                 continue
             hud = self.hud_reader.read(frame)
             self.hud = hud
-            if not self.is_active():
+            if not self.is_active() or not hud["hud_visible"]:
                 prev_health = hud["health"]
                 continue
             now = time.monotonic()
@@ -146,7 +160,11 @@ class Bot:
                 self.alert(f"took damage, health now {health:.0%}")
             prev_health = health
 
-            if (health is not None and rules["flee_below_health"] > 0 and health < rules["flee_below_health"]
+            # A frame or two below the line is usually a misread, not a wounded player.
+            low_health_frames = (low_health_frames + 1 if health is not None
+                                 and health < rules["flee_below_health"] else 0)
+            if (health is not None and rules["flee_below_health"] > 0
+                    and low_health_frames >= c.get("flee_confirm_frames", 3)
                     and now - self.last_damage < 3 and now > flee_cooldown and not self.executor.in_reflex()):
                 self.executor.set_plan([
                     {"type": "look", "yaw": 180, "pitch": 0},
@@ -156,10 +174,23 @@ class Bot:
                 self.alert("REFLEX: low health under attack, fleeing")
                 self.wake_strategist.set()  # SURVIVAL may call for a different objective
 
-            if rules["avoid_lava"] and hud["lava"] > self.cfg["hud"]["lava_fraction"] and now > lava_cooldown:
-                self.executor.set_plan([{"type": "walk", "direction": "back", "seconds": 0.6}], source="reflex")
+            if rules["avoid_lava"] and hud["lava"] > c["hud"]["lava_fraction"] and now > lava_cooldown:
                 lava_cooldown = now + 2
-                self.alert("REFLEX: lava ahead, backed off")
+                lava_fires.append(now)
+                recent = sum(1 for t in lava_fires if now - t < c.get("lava_window_seconds", 20))
+                if not saved_lava_frame and c.get("save_lava_frame", True):
+                    saved_lava_frame = True
+                    self._save_frame(frame, "lava_trigger.png")
+                if recent <= c.get("lava_max_backoffs", 3):
+                    # Sneak: backing away from lava must not walk the bot off a ledge.
+                    self.executor.set_plan([{"type": "walk", "direction": "back",
+                                             "seconds": 0.6, "sneak": True}], source="reflex")
+                    self.alert(f"REFLEX: lava ahead ({hud['lava']:.0%} of view), backed off")
+                else:
+                    # Orange terrain (badlands especially) reads as lava, and backing up
+                    # over and over has walked the bot into holes. Hand it to the tactician.
+                    self.alert(f"lava detector has fired {recent}x ({hud['lava']:.0%} of view); not backing "
+                               "off again. If this is orange rock and not lava, say so and move on")
 
             hunger = hud["hunger"]
             if hunger is not None and hunger < rules["eat_below_hunger"] and now > hunger_nag:
