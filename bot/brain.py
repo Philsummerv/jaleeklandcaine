@@ -75,12 +75,30 @@ class CostTracker:
         if self.total >= self.cap:
             raise BudgetExceeded(f"spending cap of ${self.cap:.2f} reached")
 
+    # Compiling the manifesto happens once and is cached. Amortising it over the first few
+    # seconds of a run put "~$11.68/hour" on the status line of a run that cost $0.07.
+    ONE_OFF = ("compile",)
+    MIN_MINUTES_FOR_RATE = 1.0
+
+    def rate_per_hour(self, minutes):
+        """Spend per hour from the recurring components only, once there is enough of a run
+        to divide by. Returns None while the figure would still be mostly noise."""
+        if not minutes or minutes < self.MIN_MINUTES_FOR_RATE:
+            return None
+        ongoing = sum(p["cost"] for name, p in self.parts.items() if name not in self.ONE_OFF)
+        return ongoing / minutes * 60
+
     def summary(self):
         """One line per component: spend, $/hour, calls/min, and average tokens per call."""
         with self.lock:
             minutes = max((time.monotonic() - self.started) / 60, 1 / 60) if self.started else None
-            lines = [f"spent ${self.total:.2f} of ${self.cap:.2f}"
-                     + (f", ~${self.total / minutes * 60:.2f}/hour" if minutes else "")]
+            rate = self.rate_per_hour(minutes)
+            if rate is None:
+                tail = ", rate after a minute of play" if minutes else ""
+            else:
+                one_off = sum(p["cost"] for name, p in self.parts.items() if name in self.ONE_OFF)
+                tail = f", ~${rate:.2f}/hour" + (f" (plus ${one_off:.3f} one-off)" if one_off else "")
+            lines = [f"spent ${self.total:.2f} of ${self.cap:.2f}" + tail]
             for name, p in self.parts.items():
                 n = max(p["calls"], 1)
                 cached = p["cache_read"] / max(p["input"] + p["cache_write"] + p["cache_read"], 1)

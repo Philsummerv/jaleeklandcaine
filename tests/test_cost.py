@@ -430,3 +430,29 @@ class ManifestoReachesThePrompts(unittest.TestCase):
         b = self.brain()
         for name, text in (("tactician", b.tactician_system), ("strategist", b.strategist_system)):
             self.assertNotIn("{", text, f"{name} prompt has an unfilled placeholder")
+
+
+class HourlyRate(unittest.TestCase):
+    """A one-off compile amortised over the first seconds of a run read as $11.68/hour on
+    a run that spent $0.07 in total."""
+
+    def tracker(self, minutes_elapsed):
+        from bot.brain import CostTracker
+        t = CostTracker(5.0)
+        t.add("claude-opus-5-5", usage(i=1500, o=1300), "compile")       # the one-off
+        for _ in range(60):
+            t.add("claude-haiku-5-5", usage(i=300, r=2700, o=160), "tactician")
+        t.started = time.monotonic() - minutes_elapsed * 60
+        return t
+
+    def test_no_rate_is_quoted_from_a_few_seconds(self):
+        t = self.tracker(10 / 60)
+        self.assertIsNone(t.rate_per_hour(10 / 60))
+        self.assertIn("rate after a minute", t.summary())
+
+    def test_the_rate_excludes_the_one_off(self):
+        t = self.tracker(5.0)
+        tactician = t.parts["tactician"]["cost"]
+        self.assertAlmostEqual(t.rate_per_hour(5.0), tactician / 5 * 60, places=6)
+        self.assertLess(t.rate_per_hour(5.0), t.total / 5 * 60, "the compile must not inflate it")
+        self.assertIn("one-off", t.summary(), "but it should still be reported")
