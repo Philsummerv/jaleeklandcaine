@@ -119,6 +119,20 @@ def cmd_calibrate(args):
             img.putpixel((box[0] + int(x), box[1] + int(y)), color)
     out = ROOT / "calibration.png"
     img.save(out)
+    # Unannotated, native-resolution crops: the overlays above and any lossy re-encoding
+    # make colours sampled from calibration.png unreliable for tuning the masks.
+    crops = []
+    for name in ("health_region", "hunger_region"):
+        x0, y0, x1, y1 = cfg["hud"][name]
+        crops.append(frame[int(y0 * h):int(y1 * h), int(x0 * w):int(x1 * w)])
+    strip = max(c.shape[1] for c in crops), sum(c.shape[0] for c in crops)
+    sheet = Image.new("RGB", strip)
+    y = 0
+    for c in crops:
+        sheet.paste(Image.fromarray(c), (0, y))
+        y += c.shape[0]
+    sheet.save(ROOT / "calibration_hud.png")
+    report_colours(cfg, frame)
     print(f"Window: {w}x{h}. Heart pixels: {reading['raw_hearts']}, food pixels: {reading['raw_food']}, "
           f"lava fraction: {reading['lava']:.3f}")
     if reading["raw_hearts"] < 40 or reading["raw_food"] < 40:
@@ -126,8 +140,35 @@ def cmd_calibrate(args):
               "  1. The shot caught the pause menu or a loading screen - use --wait and resume play first.\n"
               "  2. Creative or Peaceful mode, which draw no hearts or hunger bar - calibrate in Survival.\n"
               "  3. The regions are in the wrong place - compare the boxes in calibration.png with the HUD.")
-    print(f"Saved {out}. The green box should contain your hearts and the blue box your hunger bar;"
-          " adjust [hud] regions in config.toml if not.")
+    print(f"\nSaved {out} (annotated) and calibration_hud.png (raw crops of the two bars).\n"
+          "The green box should contain your hearts and the blue box your hunger bar;"
+          " adjust the [hud] regions in config.toml if not.")
+
+
+def report_colours(cfg, frame):
+    """Print the commonest colours actually inside each HUD box, and whether the mask
+    matches them. Tuning a mask needs the real pixels, not a screenshot of them."""
+    import numpy as np
+    from .screen import food_mask, heart_mask
+    h, w = frame.shape[:2]
+    print("\nColours inside each region (mask verdict in brackets):")
+    for name, mask in (("health_region", heart_mask), ("hunger_region", food_mask)):
+        x0, y0, x1, y1 = cfg["hud"][name]
+        crop = frame[int(y0 * h):int(y1 * h), int(x0 * w):int(x1 * w)].astype("int16")
+        flat = crop.reshape(-1, 3)
+        # Icons are the saturated pixels; the rest is whatever world is behind them.
+        spread = flat.max(axis=1) - flat.min(axis=1)
+        icons = flat[(spread > 40) & (flat.max(axis=1) > 90)]
+        print(f"  {name}: {len(flat)} px, {len(icons)} saturated, {int(mask(crop).sum())} matched")
+        if not len(icons):
+            print("    (no saturated pixels: was the HUD actually on screen?)")
+            continue
+        q = (icons // 16 * 16)
+        cols, counts = np.unique(q, axis=0, return_counts=True)
+        for i in np.argsort(-counts)[:6]:
+            r, g, b = (int(v) for v in cols[i])
+            hit = bool(mask(np.array([[[r + 8, g + 8, b + 8]]], dtype="int16"))[0, 0])
+            print(f"    rgb({r:3d},{g:3d},{b:3d}) x{counts[i]:5d}  [{'match' if hit else 'miss '}]")
 
 
 def cmd_test_input(args):

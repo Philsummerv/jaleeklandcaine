@@ -143,3 +143,44 @@ class BrainCalls(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HudMasks(unittest.TestCase):
+    """The bars are drawn over the world, so terrain colours land inside the boxes."""
+
+    def setUp(self):
+        from bot.screen import food_mask, heart_mask
+        self.heart, self.food = heart_mask, food_mask
+
+    def px(self, r, g, b):
+        return np.array([[[r, g, b]]], dtype=np.int16)
+
+    def test_heart_mask_ignores_badlands_terrain(self):
+        self.assertTrue(self.heart(self.px(220, 30, 30))[0, 0])      # heart red
+        for name, rgb in (("red sand", (190, 105, 60)), ("terracotta", (152, 94, 67)),
+                          ("orange terracotta", (161, 83, 37)), ("grass", (90, 140, 60))):
+            self.assertFalse(self.heart(self.px(*rgb))[0, 0], name)
+
+    def test_food_mask_currently_matches_terrain(self):
+        # Known weakness, kept visible: these are terrain, not drumsticks. If the mask is
+        # retuned, this test should be inverted rather than deleted.
+        self.assertTrue(self.food(self.px(190, 105, 60))[0, 0])
+
+    def test_confirmed_max_ignores_a_single_bright_frame(self):
+        from bot.screen import HudReader
+        cfg = {"health_region": [0, 0, 1, 1], "hunger_region": [0, 0, 1, 1],
+               "lava_region": [0, 0, 1, 1], "min_calibration_pixels": 1, "max_confirm_frames": 3}
+        reader = HudReader(cfg)
+        full = np.zeros((10, 100, 3), np.uint8)
+        full[:, :50] = (220, 30, 30)                       # a full bar
+        spike = full.copy()
+        spike[:, 50:] = (220, 30, 30)                      # one frame of twice as much red
+        for _ in range(3):
+            reader.read(full)
+        base = reader.max_hearts
+        reading = reader.read(spike)
+        self.assertEqual(reader.max_hearts, base, "one frame must not raise the reference")
+        self.assertEqual(reading["health"], 1.0, "health must stay clamped at 100%")
+        for _ in range(3):
+            reader.read(spike)
+        self.assertGreater(reader.max_hearts, base, "a sustained higher reading should count")

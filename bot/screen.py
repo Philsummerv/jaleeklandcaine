@@ -2,21 +2,25 @@
 (health, hunger, lava ahead). Everything here runs locally - no API calls."""
 
 import base64
+import collections
 import io
 import threading
 
-import mss
 import numpy as np
 from PIL import Image
 
-from . import winapi
-
 _local = threading.local()
+
+
+def _winapi():
+    from . import winapi  # imported lazily: Windows-only, and the masks below are not
+    return winapi
 
 
 def _sct():
     # mss handles are not thread-safe, so each thread gets its own.
     if not hasattr(_local, "sct"):
+        import mss
         _local.sct = mss.MSS()
     return _local.sct
 
@@ -27,7 +31,7 @@ class Screen:
         self.hwnd = None
 
     def locate(self):
-        self.hwnd = winapi.find_window(self.window_title)
+        self.hwnd = _winapi().find_window(self.window_title)
         return self.hwnd
 
     def describe(self):
@@ -36,8 +40,8 @@ class Screen:
         title merely starts with window_title, e.g. a browser tab about Minecraft."""
         if not self.hwnd:
             return "no window"
-        title = winapi.window_title(self.hwnd)
-        left, top, w, h = winapi.client_rect(self.hwnd)
+        title = _winapi().window_title(self.hwnd)
+        left, top, w, h = _winapi().client_rect(self.hwnd)
         note = "" if title == self.window_title else "  <-- NOT an exact title match, check this is the game"
         return f"'{title}' {w}x{h} at ({left},{top}){note}"
 
@@ -47,7 +51,7 @@ class Screen:
             self.locate()
         if not self.hwnd:
             raise RuntimeError(f"Can't find a window titled '{self.window_title}'. Is Minecraft open?")
-        return winapi.client_rect(self.hwnd)
+        return _winapi().client_rect(self.hwnd)
 
     def grab(self, region=None):
         """Grab the client area (or a sub-region given as fractions x0,y0,x1,y1).
@@ -63,7 +67,7 @@ class Screen:
         return np.asarray(shot)[:, :, 2::-1]  # BGRA -> RGB
 
     def focused(self):
-        return winapi.is_foreground(self.hwnd)
+        return _winapi().is_foreground(self.hwnd)
 
     def screen_point(self, fx, fy):
         left, top, w, h = self.rect()
@@ -110,15 +114,30 @@ class HudReader:
         self.max_hearts = 0
         self.max_food = 0
         self.min_pixels = cfg.get("min_calibration_pixels", 40)
+        n = max(int(cfg.get("max_confirm_frames", 3)), 1)
+        self._hearts_seen = collections.deque(maxlen=n)
+        self._food_seen = collections.deque(maxlen=n)
+
+    @staticmethod
+    def _confirm(current_max, seen):
+        """Raise the full-bar reference only once a higher reading has held for every
+        frame in the window. The bars are drawn straight over the world, so one frame of
+        bright terrain behind them would otherwise inflate the reference for the whole
+        session and make a full bar read as half empty."""
+        if len(seen) < seen.maxlen:
+            return current_max
+        return max(current_max, min(seen))
 
     def read(self, frame):
         hearts = int(heart_mask(_crop(frame, self.cfg["health_region"])).sum())
         food = int(food_mask(_crop(frame, self.cfg["hunger_region"])).sum())
         lava = float(lava_mask(_crop(frame, self.cfg["lava_region"])).mean())
-        self.max_hearts = max(self.max_hearts, hearts)
-        self.max_food = max(self.max_food, food)
-        health = hearts / self.max_hearts if self.max_hearts >= self.min_pixels else None
-        hunger = food / self.max_food if self.max_food >= self.min_pixels else None
+        self._hearts_seen.append(hearts)
+        self._food_seen.append(food)
+        self.max_hearts = self._confirm(self.max_hearts, self._hearts_seen)
+        self.max_food = self._confirm(self.max_food, self._food_seen)
+        health = min(hearts / self.max_hearts, 1.0) if self.max_hearts >= self.min_pixels else None
+        hunger = min(food / self.max_food, 1.0) if self.max_food >= self.min_pixels else None
         return {"health": health, "hunger": hunger, "lava": lava,
                 "raw_hearts": hearts, "raw_food": food}
 

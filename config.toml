@@ -55,7 +55,10 @@ rules_cache = ".manifesto_rules.json"
 # --- HUD reading (fractions of the window: x0, y0, x1, y1) ------------------
 # Run `python -m bot calibrate` with full health/hunger and check calibration.png.
 [hud]
-health_region = [0.30, 0.83, 0.50, 0.935]
-hunger_region = [0.50, 0.83, 0.70, 0.935]
+# Tightened to hug the bars: they are drawn straight over the world, so every extra
+# pixel of box is terrain that can match the colour masks (badlands red sand especially).
+health_region = [0.355, 0.872, 0.497, 0.912]   # was [0.30, 0.83, 0.50, 0.935]
+hunger_region = [0.503, 0.872, 0.645, 0.912]   # was [0.50, 0.83, 0.70, 0.935]
+max_confirm_frames = 3        # a higher "full bar" reading must hold this many frames to count
 lava_region   = [0.30, 0.35, 0.70, 0.85]
 lava_fraction = 0.12          # share of lava-colored pixels ahead that triggers the reflex
