@@ -48,6 +48,7 @@ class Bot:
         self.screen = Screen(cfg["window_title"])
         if not self.screen.locate():
             raise RuntimeError(f"Can't find a window titled '{cfg['window_title']}'. Start Minecraft first.")
+        self.pending_window_note = f"Window: {self.screen.describe()}"
         self.hud_reader = HudReader(cfg["hud"])
         self.costs = CostTracker(cfg["max_dollars_per_session"])
         self.brain = Brain(cfg, self.costs, log=self.log)
@@ -290,6 +291,7 @@ class Bot:
                          f"{'ACTIVE' if self.is_active() else 'waiting for game focus'}\n  {self.costs.summary()}")
 
     def run(self):
+        self.log(self.pending_window_note)
         self.log("Compiling manifesto...")
         self.rules = self.brain.compile_manifesto(self.statements, self.cfg.get("rules_cache", ".manifesto_rules.json"))
         self.brain.set_manifesto(self.rules)

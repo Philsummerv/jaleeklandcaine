@@ -58,7 +58,8 @@ def cmd_plan_once(args):
     cfg, statements = load()
     screen = Screen(cfg["window_title"])
     if not screen.locate():
-        sys.exit("Minecraft window not found.")
+        sys.exit(f"No window titled '{cfg['window_title']}' found. Start Minecraft first.")
+    print(f"Window: {screen.describe()}")
     costs = CostTracker(cfg["max_dollars_per_session"])
     brain = Brain(cfg, costs)
     rules = brain.compile_manifesto(statements, ROOT / cfg.get("rules_cache", ".manifesto_rules.json"))
@@ -81,7 +82,8 @@ def cmd_calibrate(args):
     cfg, _ = load()
     screen = Screen(cfg["window_title"])
     if not screen.locate():
-        sys.exit("Minecraft window not found.")
+        sys.exit(f"No window titled '{cfg['window_title']}' found. Start Minecraft first.")
+    print(f"Window: {screen.describe()}")
     frame = screen.grab()
     h, w = frame.shape[:2]
     reading = HudReader({**cfg["hud"], "min_calibration_pixels": 1}).read(frame)
@@ -113,7 +115,8 @@ def cmd_test_input(args):
     cfg, _ = load()
     screen = Screen(cfg["window_title"])
     if not screen.locate():
-        sys.exit("Minecraft window not found.")
+        sys.exit(f"No window titled '{cfg['window_title']}' found. Start Minecraft first.")
+    print(f"Window: {screen.describe()}")
     countdown(screen)
     ppd = cfg["mouse_pixels_per_degree"]
     print("Walking forward 1s...")

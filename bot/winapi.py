@@ -155,6 +155,10 @@ def find_window(title):
     return found[0] if found else None
 
 
+def window_title(hwnd):
+    return _title(hwnd)
+
+
 def is_foreground(hwnd):
     return hwnd is not None and user32.GetForegroundWindow() == hwnd
 

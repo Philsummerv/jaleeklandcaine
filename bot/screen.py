@@ -30,6 +30,18 @@ class Screen:
         self.hwnd = winapi.find_window(self.window_title)
         return self.hwnd
 
+    def describe(self):
+        """What window we actually latched onto, so a wrong match is obvious.
+        Only an exact title match is certain: the fallback matches any window whose
+        title merely starts with window_title, e.g. a browser tab about Minecraft."""
+        if not self.hwnd:
+            return "no window"
+        title = winapi.window_title(self.hwnd)
+        left, top, w, h = winapi.client_rect(self.hwnd)
+        note = "" if title == self.window_title else "  <-- NOT an exact title match, check this is the game"
+        return f"'{title}' {w}x{h} at ({left},{top}){note}"
+
+
     def rect(self):
         if not self.hwnd:
             self.locate()
