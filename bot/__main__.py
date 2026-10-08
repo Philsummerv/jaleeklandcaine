@@ -1,6 +1,7 @@
 """Command line entry point.
 
     python -m bot run [--dry-run]   play (F8 start/pause, F12 quit)
+    python -m bot manifesto         edit the four statements live, applies to a running bot
     python -m bot plan-once         one strategist + tactician call, prints the plan, no input
     python -m bot calibrate         save calibration.png showing what the HUD reader sees
     python -m bot test-input        walk/turn/jump test to check controls and mouse sensitivity
@@ -88,6 +89,13 @@ def cmd_plan_once(args):
                                      "executor": {"doing_now": "idle"}})
     print(f"\nTactician ({time.monotonic() - t0:.1f}s, ${c2:.4f}):\n" + json.dumps(tactic, indent=2))
     print(f"\nTotal: ${costs.total:.4f}\n  {costs.summary()}")
+
+
+def cmd_manifesto(args):
+    from .editor import run_editor
+    cfg, _ = load()
+    run_editor(ROOT / cfg.get("manifesto_file", "manifesto.txt"),
+               ROOT / cfg.get("rules_cache", ".manifesto_rules.json"))
 
 
 def cmd_calibrate(args):
@@ -208,13 +216,14 @@ def main():
     po = sub.add_parser("plan-once", help="one planning round, printed, no input")
     po.add_argument("--wait", type=int, default=0, metavar="SECONDS",
                     help="count down before the screenshot, so you can get back in-world first")
+    sub.add_parser("manifesto", help="edit the four statements live while the bot runs")
     cal = sub.add_parser("calibrate", help="check the HUD reader regions")
     cal.add_argument("--wait", type=int, default=0, metavar="SECONDS",
                      help="count down before the screenshot, so you can get back in-world first")
     sub.add_parser("test-input", help="check controls and mouse sensitivity")
     args = p.parse_args()
     {"run": cmd_run, "plan-once": cmd_plan_once, "calibrate": cmd_calibrate,
-     "test-input": cmd_test_input}[args.cmd](args)
+     "test-input": cmd_test_input, "manifesto": cmd_manifesto}[args.cmd](args)
 
 
 if __name__ == "__main__":

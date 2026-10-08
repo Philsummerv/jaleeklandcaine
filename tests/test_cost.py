@@ -3,8 +3,11 @@
     python -m unittest discover tests
 """
 
+import collections
 import json
 import os
+import threading
+import time
 import tomllib
 import unittest
 from pathlib import Path
@@ -270,3 +273,78 @@ class PlanClamping(unittest.TestCase):
         plan = clean_plan([{"type": "mine", "seconds": 600}, {"type": "look", "yaw": 9000}])
         self.assertEqual(plan[0]["seconds"], 15.0)
         self.assertEqual(plan[1]["yaw"], 180.0)
+
+
+class ManifestoReload(unittest.TestCase):
+    """The watcher applies an edited manifesto to a running bot without a restart."""
+
+    def setUp(self):
+        import tempfile
+        from bot.runner import Bot
+        self.dir = tempfile.mkdtemp()
+        self.path = Path(self.dir) / "manifesto.txt"
+        self.write("gather wood")
+        self.bot = Bot.__new__(Bot)                     # no window, no API client
+        self.bot.cfg = {"manifesto_reload_seconds": 0.01, "rules_cache": str(Path(self.dir) / "r.json")}
+        self.bot.running = True
+        self.bot.manifesto_path = str(self.path)
+        self.bot.manifesto_stamp = None
+        self.bot.statements = self.read()
+        self.bot.milestones_done = ["old"]
+        self.bot.objective = {"objective": "old one"}
+        self.bot.objective_history = collections.deque(["old"], maxlen=6)
+        self.bot.wake_strategist = threading.Event()
+        self.bot.logged = []
+        self.bot.log = self.bot.logged.append
+        self.compiled = []
+
+    def write(self, ambition):
+        self.path.write_text(
+            "SURVIVAL: run away when hurt\nCODE: never attack players\n"
+            f"AMBITION: {ambition}\nTEMPERAMENT: careful\n", encoding="utf-8")
+
+    def read(self):
+        from bot.brain import parse_manifesto
+        return parse_manifesto(self.path.read_text(encoding="utf-8"))
+
+    def fake_brain(self, rules):
+        brain = type("B", (), {})()
+        brain.compile_manifesto = lambda st, cache: (self.compiled.append(st), rules)[1]
+        brain.set_manifesto = lambda r: self.compiled.append("applied")
+        return brain
+
+    def run_watcher(self, edit, until):
+        """Start watching, then make the edit: the loop takes the file's stamp as it
+        starts, so an edit made beforehand looks like no change at all."""
+        t = threading.Thread(target=self.bot.manifesto_loop, daemon=True)
+        t.start()
+        time.sleep(0.05)
+        edit()
+        for _ in range(200):
+            time.sleep(0.01)
+            if until():
+                break
+        self.bot.running = False
+        t.join(timeout=1)
+
+    def test_edit_is_picked_up_and_resets_progress(self):
+        new_rules = {"flee_below_health": 0.5, "eat_below_hunger": 0.5, "avoid_lava": True,
+                     "code_rules": ["never attack players"], "ambition_milestones": ["a", "b"]}
+        self.bot.brain = self.fake_brain(new_rules)
+        self.bot.rules = new_rules
+        self.run_watcher(lambda: self.write("build a stone tower"), lambda: self.compiled)
+        self.assertIn("applied", self.compiled, "new rules should be pushed to the brain")
+        self.assertEqual(self.bot.statements["AMBITION"], "build a stone tower")
+        self.assertEqual(self.bot.milestones_done, [], "progress belonged to the old ambition")
+        self.assertIsNone(self.bot.objective, "the old objective served the old ambition")
+        self.assertTrue(self.bot.wake_strategist.is_set(), "should re-plan at once")
+
+    def test_a_broken_manifesto_is_ignored(self):
+        self.bot.brain = self.fake_brain({})
+        self.bot.rules = {"flee_below_health": 0.5}
+        before = dict(self.bot.statements)
+        self.run_watcher(lambda: self.path.write_text("SURVIVAL: only this one\n", encoding="utf-8"),
+                         lambda: self.bot.logged)
+        self.assertEqual(self.bot.statements, before, "a half-written file must not be applied")
+        self.assertEqual(self.compiled, [], "and must not be paid for")
+        self.assertTrue(any("not usable" in m for m in self.bot.logged))

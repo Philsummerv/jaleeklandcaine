@@ -21,6 +21,16 @@ A bot that plays Minecraft Bedrock Edition on your PC, as you, guided by four st
  Reflexes   (local, 10 Hz)       --- reads hearts/hunger/lava from pixels and can interrupt anything
 ```
 
+Edit `manifesto.txt` while it plays and it changes its mind: the bot re-reads the file every
+couple of seconds, recompiles its rules and its milestone ladder, and picks a fresh objective.
+`python -m bot manifesto` opens a small window with the four statements and an Apply button.
+Each change costs one compile call (about a cent); identical text is free.
+
+From the AMBITION the bot also works out a ladder of 5-8 concrete milestones, and carries it
+past where your words stop - a one-line ambition still produces a long-term arc. The strategist
+works the earliest unfinished milestone and reports which one, and the log shows
+`MILESTONE REACHED` as it goes.
+
 ## Setup
 
 1. `pip install -r requirements.txt`

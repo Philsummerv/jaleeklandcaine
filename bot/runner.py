@@ -5,10 +5,11 @@ import collections
 import threading
 import time
 import traceback
+from pathlib import Path
 
 import anthropic
 
-from .brain import BadResponse, Brain, BudgetExceeded, CostTracker
+from .brain import BadResponse, Brain, BudgetExceeded, CostTracker, parse_manifesto
 from .executor import Executor
 from .pacing import call_reason, frame_change, frame_signature, looks_stuck, should_skip
 from .screen import HudReader, Screen, encode_jpeg
@@ -69,6 +70,9 @@ class Bot:
         self.wake_strategist = threading.Event()
         self.last_damage = 0.0
         self.last_stuck = 0.0
+        self.milestones_done = []
+        self.manifesto_path = cfg.get("manifesto_file", "manifesto.txt")
+        self.manifesto_stamp = None
 
     # --- helpers ----------------------------------------------------------
 
@@ -138,7 +142,6 @@ class Bot:
     # --- reflexes: local pixel reading, no API -----------------------------
 
     def reflex_loop(self):
-        rules = self.rules
         c = self.cfg
         prev_health = None
         flee_cooldown = lava_cooldown = hunger_nag = 0.0
@@ -161,6 +164,7 @@ class Bot:
                 prev_health = hud["health"]
                 continue
             now = time.monotonic()
+            rules = self.rules  # re-read each pass: the manifesto can change while running
             health = hud["health"]
 
             if health is not None and prev_health is not None and health < prev_health - 0.04:
@@ -224,6 +228,54 @@ class Bot:
                 hunger_nag = now + 20
                 self.alert(f"hungry ({hunger:.0%}): eat food if you have any (select it in the hotbar, use ~1.8s)")
 
+    # --- manifesto: re-read and recompile when the file changes -------------
+
+    def manifesto_loop(self):
+        """Watch manifesto.txt and apply edits to the running bot. A change costs one
+        compile call (about a cent); identical text is served from the rules cache."""
+        path = Path(self.manifesto_path)
+        try:
+            self.manifesto_stamp = path.stat().st_mtime
+        except OSError:
+            self.manifesto_stamp = None
+        while self.running:
+            time.sleep(self.cfg.get("manifesto_reload_seconds", 2))
+            try:
+                stamp = path.stat().st_mtime
+            except OSError:
+                continue
+            if stamp == self.manifesto_stamp:
+                continue
+            self.manifesto_stamp = stamp
+            try:
+                statements = parse_manifesto(path.read_text(encoding="utf-8"))
+            except (ValueError, OSError) as e:
+                self.log(f"manifesto not usable, keeping the old one: {e}")
+                continue
+            if statements == self.statements:
+                continue
+            self.log("manifesto changed, recompiling...")
+            try:
+                rules = self.brain.compile_manifesto(statements, self.cfg.get("rules_cache", ".manifesto_rules.json"))
+            except (anthropic.APIError, BadResponse, BudgetExceeded) as e:
+                self.log(f"could not recompile the manifesto, keeping the old one: {e}")
+                continue
+            self.statements = statements
+            self.rules = rules
+            self.brain.set_manifesto(rules)
+            self.milestones_done = []
+            self.objective = None          # the old objective served the old ambition
+            self.objective_history.clear()
+            self.describe_rules("Manifesto updated.")
+            self.wake_strategist.set()
+
+    def describe_rules(self, prefix="Reflexes:"):
+        self.log(f"{prefix} flee below {self.rules['flee_below_health']:.0%} health, "
+                 f"eat below {self.rules['eat_below_hunger']:.0%} hunger, avoid lava={self.rules['avoid_lava']}")
+        self.log("Code: " + " | ".join(self.rules["code_rules"]))
+        for i, m in enumerate(self.rules.get("ambition_milestones") or [], 1):
+            self.log(f"  milestone {i}: {m}")
+
     # --- strategist: slow, decides WHAT to do ------------------------------
 
     def strategist_loop(self):
@@ -246,6 +298,8 @@ class Bot:
                 "tactician_note": self.tactician_note,
                 "vitals": self.vitals(),
                 "recent_alerts": self.recent_alerts(30),
+                "milestones": self.rules.get("ambition_milestones") or [],
+                "milestones_done": self.milestones_done,
             }
             try:
                 result, cost = self.brain.strategize(self.frame_b64(), state)
@@ -260,7 +314,12 @@ class Bot:
                 self.objective_started = time.monotonic()
                 self.tactician_note = ""
             self.objective = result
-            self.log(f"STRATEGY (${cost:.3f}): {result['objective']}  |  {result['situation']}")
+            reached = result.get("milestone")
+            if result.get("milestone_complete") and reached and reached not in self.milestones_done:
+                self.milestones_done.append(reached)
+                self.log(f"MILESTONE REACHED: {reached}")
+            self.log(f"STRATEGY (${cost:.3f}): {result['objective']}  |  {result['situation']}"
+                     + (f"  [working on: {reached}]" if reached else ""))
             self.wake_tactician.set()
 
     # --- tactician: fast, decides HOW (button presses) ---------------------
@@ -353,16 +412,15 @@ class Bot:
         self.log("Compiling manifesto...")
         self.rules = self.brain.compile_manifesto(self.statements, self.cfg.get("rules_cache", ".manifesto_rules.json"))
         self.brain.set_manifesto(self.rules)
-        self.log(f"Reflexes: flee below {self.rules['flee_below_health']:.0%} health, "
-                 f"eat below {self.rules['eat_below_hunger']:.0%} hunger, avoid lava={self.rules['avoid_lava']}")
-        self.log("Code: " + " | ".join(self.rules["code_rules"]))
+        self.describe_rules()
         if self.dry_run:
             self.log("DRY RUN: Claude will plan, but no keys or mouse input will be sent.")
 
         from . import winapi  # Windows-only; imported here so clean_plan can be tested anywhere
 
         self.executor.start()
-        for fn in (self.reflex_loop, self.strategist_loop, self.tactician_loop, self.status_loop):
+        for fn in (self.reflex_loop, self.strategist_loop, self.tactician_loop, self.status_loop,
+                   self.manifesto_loop):
             self._spawn(fn)
 
         winapi.key_pressed(winapi.VK_F8)

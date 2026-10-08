@@ -171,8 +171,10 @@ STRATEGY_SCHEMA = {
         "objective": {"type": "string"},
         "done_when": {"type": "string"},
         "hints": {"type": "string"},
+        "milestone": {"type": "string"},
+        "milestone_complete": {"type": "boolean"},
     },
-    "required": ["situation", "objective", "done_when", "hints"],
+    "required": ["situation", "objective", "done_when", "hints", "milestone", "milestone_complete"],
     "additionalProperties": False,
 }
 
@@ -186,10 +188,12 @@ RULES_SCHEMA = {
         "survival_summary": {"type": "string"},
         "code_rules": {"type": "array", "items": {"type": "string"}},
         "ambition_summary": {"type": "string"},
+        "ambition_milestones": {"type": "array", "items": {"type": "string"}},
         "temperament_summary": {"type": "string"},
     },
     "required": ["flee_below_health", "eat_below_hunger", "avoid_lava", "fight_or_flight",
-                 "survival_summary", "code_rules", "ambition_summary", "temperament_summary"],
+                 "survival_summary", "code_rules", "ambition_summary", "ambition_milestones",
+                 "temperament_summary"],
     "additionalProperties": False,
 }
 
@@ -212,7 +216,10 @@ Translate this into configuration:
 - avoid_lava: true unless the manifesto clearly says otherwise.
 - fight_or_flight: the default reaction to hostile mobs.
 - code_rules: rewrite CODE as 1-5 short, concrete, checkable rules ("Never attack cows, pigs, sheep, chickens or other passive mobs").
-- The summaries: one or two sentences each, concrete and in Minecraft terms."""
+- The summaries: one or two sentences each, concrete and in Minecraft terms.
+- ambition_milestones: 5-8 milestones in order, each one concrete enough to look at the screen and say whether it is done ("holding a stone pickaxe", "32 logs in the inventory").
+
+The owner may have written an AMBITION that is only a first step, or one that would be finished in ten minutes. Work out what it is FOR, and carry the ladder well past where their words stop: the early milestones are what they asked for, the later ones are what someone who wanted that would want next, in the style of the TEMPERAMENT and never breaking the CODE. Something asking only for wood should end up somewhere a player with plenty of wood would go. Keep every milestone achievable by a clumsy player who can only see the screen, and order them so each one makes the next easier."""
 
 STRATEGIST_SYSTEM = """You are the strategist of an autonomous bot playing Minecraft Bedrock Edition on a friends' Realm, logged in as its owner. You think slowly and decide WHAT the bot should be doing; a fast tactician handles the button presses.
 
@@ -221,6 +228,11 @@ The bot's internal manifesto (in priority order):
 2. CODE (never broken): {code}
 3. AMBITION (long-term purpose): {ambition}
 4. TEMPERAMENT (style and idle behaviour): {temperament}
+
+The ladder of milestones toward the AMBITION, in order:
+{milestones}
+
+Work the earliest milestone that is not done yet, and say which one in `milestone`. Set `milestone_complete` only when the screenshot or the history shows that milestone is actually finished, not merely started. If every milestone is done, carry the AMBITION onward yourself: name the next worthwhile goal beyond the list and work toward that.
 
 Choose ONE concrete objective achievable in roughly 30 seconds to 3 minutes that moves toward the AMBITION, in the style of the TEMPERAMENT, never violating the CODE, and safe per SURVIVAL. Work from what is actually visible in the screenshot and from recent history; the bot is a clumsy player that sees only the screen, so prefer simple, visual objectives ("chop the tree directly ahead until 6 logs", "dig a 1x2 staircase down 10 blocks") over ones that need coordinates or menus. If the previous objective is stuck, pick something different. Respect other players and their builds unless the manifesto says otherwise.
 
@@ -263,7 +275,7 @@ class Brain:
     # --- manifesto -> rules (once, cached) --------------------------------
 
     def compile_manifesto(self, statements, cache_path):
-        key = hashlib.sha256((json.dumps(statements, sort_keys=True) + "v1").encode()).hexdigest()
+        key = hashlib.sha256((json.dumps(statements, sort_keys=True) + "v2").encode()).hexdigest()
         cache = Path(cache_path)
         if cache.exists():
             data = json.loads(cache.read_text(encoding="utf-8"))
@@ -292,7 +304,9 @@ class Brain:
             "ambition": rules["ambition_summary"],
             "temperament": rules["temperament_summary"],
         }
-        self.strategist_system = STRATEGIST_SYSTEM.format(**fields)
+        milestones = rules.get("ambition_milestones") or ["(none worked out)"]
+        self.strategist_system = STRATEGIST_SYSTEM.format(
+            milestones="\n".join(f"{i}. {m}" for i, m in enumerate(milestones, 1)), **fields)
         self.tactician_system = TACTICIAN_SYSTEM.format(**fields)
 
     # --- strategist -------------------------------------------------------
