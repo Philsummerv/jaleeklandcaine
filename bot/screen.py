@@ -83,6 +83,24 @@ def encode_jpeg(frame, width, quality=70):
     return base64.standard_b64encode(buf.getvalue()).decode("ascii")
 
 
+def bar_level(mask, icons=10, min_icon_pixels=20):
+    """How full a bar is, read from one frame and nothing else.
+
+    The bar is always `icons` icons wide, so splitting the box into that many columns and
+    comparing them to each other gives an absolute reading: the fullest icon in this frame
+    is what a full one looks like, whatever the resolution or the GUI scale. No history and
+    no calibration, which matters because a bot that starts wounded never sees a full bar -
+    one run took 6.5 hearts as its reference and reported 76% health at about 50%.
+    """
+    width = mask.shape[1]
+    edges = [round(i * width / icons) for i in range(icons + 1)]
+    counts = [int(mask[:, edges[i]:edges[i + 1]].sum()) for i in range(icons)]
+    fullest = max(counts)
+    if fullest < min_icon_pixels:
+        return None, counts
+    return min(sum(counts) / (icons * fullest), 1.0), counts
+
+
 def _median(values):
     ordered = sorted(values)
     return ordered[len(ordered) // 2]
@@ -153,26 +171,29 @@ class HudReader:
         trustworthy: anything that briefly hides the HUD - a menu, a screen transition -
         drops both bars to nothing at once, which would otherwise read as a player about
         to die and set the flee reflex off at full health."""
+        icons = int(self.cfg.get("bar_icons", 10))
+        health_raw, _ = bar_level(heart_mask(_crop(frame, self.cfg["health_region"])), icons)
+        hunger_raw, _ = bar_level(food_mask(_crop(frame, self.cfg["hunger_region"])), icons)
         hearts = int(heart_mask(_crop(frame, self.cfg["health_region"])).sum())
         food = int(food_mask(_crop(frame, self.cfg["hunger_region"])).sum())
         lava = float(lava_mask(_crop(frame, self.cfg["lava_region"])).mean())
-        self._hearts_recent.append(hearts)
-        self._food_recent.append(food)
+        # Smooth the fractions, not the pixel counts: one covered frame should not move them.
+        self._hearts_recent.append(health_raw if health_raw is not None else 0.0)
+        self._food_recent.append(hunger_raw if hunger_raw is not None else 0.0)
+        self.max_hearts = max(self.max_hearts, hearts)     # kept for the diagnostic log only
+        self.max_food = max(self.max_food, food)
         hearts_s = _median(self._hearts_recent)
         food_s = _median(self._food_recent)
-        self._hearts_seen.append(hearts_s)
-        self._food_seen.append(food_s)
-        self.max_hearts = self._confirm(self.max_hearts, self._hearts_seen)
-        self.max_food = self._confirm(self.max_food, self._food_seen)
-        health = min(hearts_s / self.max_hearts, 1.0) if self.max_hearts >= self.min_pixels else None
-        hunger = min(food_s / self.max_food, 1.0) if self.max_food >= self.min_pixels else None
+        # Always a number, never None: a bar read as empty is exactly what a covering
+        # popup looks like, and the checks below are what decide whether to believe it.
+        health, hunger = hearts_s, food_s
 
         # Hunger is the canary. It drains over minutes and can only rise when the player
         # eats, so a sudden collapse is never real: something is covering the bar. Bedrock's
         # own hint popups ("Scroll or press 2 to hold item") sit right on top of the HUD,
         # which read as 0% hunger and 6% health on a healthy, well-fed player. Health alone
         # cannot be checked this way - a fall really does take most of it at once.
-        hud_visible = not (hearts_s == 0 and food_s == 0)
+        hud_visible = not (hearts == 0 and food == 0)
         if hud_visible and hunger is not None and self._last_good is not None:
             previous = self._last_good[1]
             if previous is not None and previous - hunger > self.max_fall_per_frame:

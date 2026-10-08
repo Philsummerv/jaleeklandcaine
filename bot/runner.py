@@ -23,8 +23,10 @@ MINE_MAX_SECONDS = 15.0
 
 
 def clean_plan(plan):
-    """Clamp model output to sane ranges so one weird value can't spin the camera 50 times."""
-    out = []
+    """Clamp model output to sane ranges so one weird value can't spin the camera 50 times.
+    Returns the plan and a note about anything thrown away, so a silently dropped action
+    shows up in the log instead of looking like the bot simply chose to do nothing."""
+    out, dropped = [], []
     for a in plan[:10]:
         a = {k: v for k, v in a.items() if v is not None}
         if "seconds" in a:
@@ -37,9 +39,10 @@ def clean_plan(plan):
         if "times" in a:
             a["times"] = max(1, min(int(a["times"]), 10))
         if a["type"] == "gui_click" and ("x" not in a or "y" not in a):
+            dropped.append("gui_click without x/y")
             continue
         out.append(a)
-    return out
+    return out, dropped
 
 
 class Bot:
@@ -435,8 +438,10 @@ class Bot:
                 self.log(f"tactician error: {e}")
                 time.sleep(2)
                 continue
-            plan = clean_plan(result["plan"])
+            plan, dropped = clean_plan(result["plan"])
             accepted = self.executor.set_plan(plan)
+            if dropped:
+                self.log("   dropped: " + ", ".join(dropped))
             self.tactician_note = result["note"]
             self.last_observation = result["observation"]
             took = time.monotonic() - last

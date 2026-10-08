@@ -184,21 +184,37 @@ class HudMasks(unittest.TestCase):
         return HudReader(cfg)
 
     @staticmethod
-    def bar(filled):
-        """A 200px-wide strip with `filled` of it in heart red, the rest terrain."""
-        a = np.zeros((10, 200, 3), np.uint8)
+    def icons(count, colour=(240, 16, 16), width=200, offset=0):
+        """A ten-icon bar with `count` of them lit - halves allowed - over terrain."""
+        a = np.zeros((20, width + offset, 3), np.uint8)
         a[:, :] = (96, 48, 32)
-        a[:, :filled] = (240, 16, 16)
+        slot = width // 10
+        for i in range(10):
+            lit = min(max(count - i, 0), 1)
+            if lit:
+                x = offset + i * slot + 2
+                a[4:16, x:x + int((slot - 4) * lit)] = colour
         return a
+
+    def bar(self, hearts_out_of_ten):
+        return self.icons(hearts_out_of_ten / 10 * 10)
 
     def test_bars_read_proportionally(self):
         """Measured: 2970 px at ten hearts, 1656 at five and a half - 55.8% against 55%."""
         reader = self.reader()
         for _ in range(5):
-            reader.read(self.bar(100))
+            reader.read(self.bar(10))
         for _ in range(5):
-            reading = reader.read(self.bar(55))
+            reading = reader.read(self.bar(5.5))
         self.assertAlmostEqual(reading["health"], 0.55, places=2)
+
+    def test_a_bot_that_starts_wounded_still_reads_correctly(self):
+        """The old reference was "the most I have ever seen", so a bot that began at 6.5
+        hearts called that 100%. One run read 76% at about half health."""
+        reader = self.reader()
+        for _ in range(5):
+            reading = reader.read(self.bar(6.5))
+        self.assertAlmostEqual(reading["health"], 0.65, places=2)
 
     def test_a_hidden_hud_never_reads_as_zero_health(self):
         """A menu, a transition or a hint popup hides the bars. There is no reading to be
@@ -206,14 +222,14 @@ class HudMasks(unittest.TestCase):
         dying player, and a dead one gets a death screen rather than empty bars."""
         reader = self.reader()
         for _ in range(5):
-            reader.read(self.bar(100))
-        blank = np.zeros((10, 200, 3), np.uint8)
+            reader.read(self.bar(10))
+        blank = np.zeros((20, 200, 3), np.uint8)
         for i in range(4):
             reading = reader.read(blank)
             self.assertEqual(reading["health"], 1.0, f"frame {i + 1} must not invent a reading")
         self.assertFalse(reading["hud_visible"], "but it should say the HUD was unreadable")
         for _ in range(3):      # the median window has to refill before it trusts them again
-            back = reader.read(self.bar(55))
+            back = reader.read(self.bar(5.5))
         self.assertTrue(back["hud_visible"])
         self.assertAlmostEqual(back["health"], 0.55, places=2)
 
@@ -223,24 +239,14 @@ class HudMasks(unittest.TestCase):
         self.assertFalse(self.heart(self.px(144, 96, 64))[0, 0])
         self.assertFalse(self.heart(self.px(160, 112, 80))[0, 0])
 
-    def test_confirmed_max_ignores_a_single_bright_frame(self):
-        from bot.screen import HudReader
-        cfg = {"health_region": [0, 0, 1, 1], "hunger_region": [0, 0, 1, 1],
-               "lava_region": [0, 0, 1, 1], "min_calibration_pixels": 1, "max_confirm_frames": 3}
-        reader = HudReader(cfg)
-        full = np.zeros((10, 100, 3), np.uint8)
-        full[:, :50] = (220, 30, 30)                       # a full bar
-        spike = full.copy()
-        spike[:, 50:] = (220, 30, 30)                      # one frame of twice as much red
-        for _ in range(3):
-            reader.read(full)
-        base = reader.max_hearts
-        reading = reader.read(spike)
-        self.assertEqual(reader.max_hearts, base, "one frame must not raise the reference")
-        self.assertEqual(reading["health"], 1.0, "health must stay clamped at 100%")
-        for _ in range(3):
-            reader.read(spike)
-        self.assertGreater(reader.max_hearts, base, "a sustained higher reading should count")
+    def test_reading_needs_no_reference_at_all(self):
+        """Each frame is read on its own: the fullest icon in it is what a full one looks
+        like. Nothing carries over between frames, between sessions, or between resolutions."""
+        reader = self.reader()
+        self.assertAlmostEqual(reader.read(self.bar(3))["health"], 0.30, places=2)
+        bigger = self.reader()      # a different window size, no history
+        wide = self.icons(3, width=600)
+        self.assertAlmostEqual(bigger.read(wide)["health"], 0.30, places=2)
 
 
 class StuckDetection(unittest.TestCase):
@@ -268,13 +274,13 @@ class PlanClamping(unittest.TestCase):
         """Bare-handed, terracotta needs 6.25s and stone 7.5s. A 6s cap on mine ended the
         hold just before the block gave, and the progress reset to zero every time."""
         from bot.runner import clean_plan
-        plan = clean_plan([{"type": "mine", "seconds": 12}, {"type": "walk", "seconds": 12}])
+        plan, _ = clean_plan([{"type": "mine", "seconds": 12}, {"type": "walk", "seconds": 12}])
         self.assertEqual(plan[0]["seconds"], 12)
         self.assertEqual(plan[1]["seconds"], 6.0)
 
     def test_absurd_values_are_still_clamped(self):
         from bot.runner import clean_plan
-        plan = clean_plan([{"type": "mine", "seconds": 600}, {"type": "look", "yaw": 9000}])
+        plan, _ = clean_plan([{"type": "mine", "seconds": 600}, {"type": "look", "yaw": 9000}])
         self.assertEqual(plan[0]["seconds"], 15.0)
         self.assertEqual(plan[1]["yaw"], 180.0)
 
@@ -369,17 +375,22 @@ class ObscuredHud(unittest.TestCase):
 
     @staticmethod
     def bars(hearts, food):
-        a = np.zeros((10, 400, 3), np.uint8)
-        a[:, :hearts] = (240, 16, 16)          # health box
-        a[:, 200:200 + food] = (208, 32, 32)   # hunger box
+        """Two ten-icon bars side by side: hearts in the left half, drumsticks in the right."""
+        a = np.zeros((20, 400, 3), np.uint8)
+        for count, colour, offset in ((hearts, (240, 16, 16), 0), (food, (208, 32, 32), 200)):
+            for i in range(10):
+                lit = min(max(count - i, 0), 1)
+                if lit:
+                    x = offset + i * 20 + 2
+                    a[4:16, x:x + int(16 * lit)] = colour
         return a
 
     def test_popup_over_the_bars_is_rejected(self):
         reader = self.reader()
         for _ in range(3):
-            reading = reader.read(self.bars(100, 100))
+            reading = reader.read(self.bars(10, 10))
         self.assertEqual(reading["hunger"], 1.0)
-        covered = reader.read(self.bars(5, 0))      # the popup frame
+        covered = reader.read(self.bars(0.5, 0))    # the popup frame
         self.assertFalse(covered["hud_visible"])
         self.assertEqual(covered["health"], 1.0, "the last trustworthy reading should stand")
         self.assertEqual(covered["hunger"], 1.0)
@@ -387,9 +398,9 @@ class ObscuredHud(unittest.TestCase):
     def test_real_hunger_drain_still_gets_through(self):
         reader = self.reader()
         for _ in range(3):
-            reader.read(self.bars(100, 100))
-        for food in (98, 96, 94, 92, 90):           # a drumstick lost over several frames
-            reading = reader.read(self.bars(100, food))
+            reader.read(self.bars(10, 10))
+        for food in (9.8, 9.6, 9.4, 9.2, 9.0):      # a drumstick lost over several frames
+            reading = reader.read(self.bars(10, food))
         self.assertTrue(reading["hud_visible"])
         self.assertAlmostEqual(reading["hunger"], 0.90, places=2)
 
@@ -397,8 +408,8 @@ class ObscuredHud(unittest.TestCase):
         """Health may legitimately collapse in one frame; only hunger is the canary."""
         reader = self.reader()
         for _ in range(3):
-            reader.read(self.bars(100, 100))
-        reading = reader.read(self.bars(10, 100))
+            reader.read(self.bars(10, 10))
+        reading = reader.read(self.bars(1, 10))
         self.assertTrue(reading["hud_visible"])
         self.assertAlmostEqual(reading["health"], 0.10, places=2)
 
@@ -567,3 +578,12 @@ class DamageConfirmation(unittest.TestCase):
 
     def test_a_single_bad_frame_raises_nothing(self):
         self.assertEqual(self.alerts_for([1.0, 1.0, 1.0, 0.1, 1.0, 1.0, 1.0]), [])
+
+    def test_a_click_with_no_coordinates_is_reported(self):
+        """It spent 40 seconds on the death screen describing the Respawn button. A
+        gui_click with no x/y was thrown away without a word, which looks identical in the
+        log to the bot choosing to do nothing."""
+        from bot.runner import clean_plan
+        plan, dropped = clean_plan([{"type": "gui_click", "button": "left"}])
+        self.assertEqual(plan, [])
+        self.assertEqual(dropped, ["gui_click without x/y"])

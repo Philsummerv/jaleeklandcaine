@@ -59,8 +59,22 @@
 - In Bedrock the recipes you can currently make are listed down the side of the crafting
   screen. Click the recipe, then the result; no arranging in a grid.
 
+## Aiming at something you can see
+- The crosshair is the exact centre of the screen, and you hit whatever is under it. If the
+  thing you want is not under the crosshair, you will hit whatever is.
+- The view is roughly 70 degrees across and 40 high. So to turn to something: how far it
+  sits from the centre, as a fraction of the half-width, times 35 degrees. A quarter of the
+  way to the left edge is about yaw -9; halfway, about -18; at the very edge, about -35.
+  Use the same with 20 degrees for pitch, positive up.
+- Make the turn, then look at the next screenshot before swinging. One turn is rarely exact,
+  and a second small correction is cheaper than hitting the ground.
+- Standing right next to something means looking slightly DOWN at it, not level - mobs and
+  blocks at your feet are below the centre line.
+
 ## Dealing with mobs
 - Swing while backing away rather than standing still, and re-aim between hits - they move.
+- Do not swing before the mob is under the crosshair. Hitting the terrain next to it does
+  nothing, and the swing cooldown means a wasted swing costs you the next real one.
 - Zombies and spiders have to reach you, so retreating while you hit them works well.
 - Skeletons shoot from range. Close the distance fast or put a block between you; standing
   still in the open is the worst option.
