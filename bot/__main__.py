@@ -21,7 +21,9 @@ def load_env():
     """Read KEY=value lines from .env into the environment (without overriding)."""
     env = ROOT / ".env"
     if env.exists():
-        for line in env.read_text(encoding="utf-8").splitlines():
+        # utf-8-sig: Notepad and PowerShell can write a byte-order mark, which would
+        # otherwise end up glued to the first key's name.
+        for line in env.read_text(encoding="utf-8-sig").splitlines():
             if "=" in line and not line.lstrip().startswith("#"):
                 k, v = line.split("=", 1)
                 os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
