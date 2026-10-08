@@ -21,6 +21,13 @@ A bot that plays Minecraft Bedrock Edition on your PC, as you, guided by four st
  Reflexes   (local, 10 Hz)       --- reads hearts/hunger/lava from pixels and can interrupt anything
 ```
 
+Two files steer it. `manifesto.txt` is **who it is** - what it wants, what it refuses, how
+it carries itself - and is compiled by Claude into reflex thresholds and a milestone ladder.
+`techniques.txt` is **how to play** - climbing, mining, fighting, menus - and is handed to
+Claude as written. Where they conflict the manifesto wins. Both are re-read while the bot
+runs; a manifesto change costs one compile call, a techniques change costs nothing, so
+`techniques.txt` is the place to write down whatever you learn from watching it play.
+
 Edit `manifesto.txt` while it plays and it changes its mind: the bot re-reads the file every
 couple of seconds, recompiles its rules and its milestone ladder, and picks a fresh objective.
 `python -m bot manifesto` opens a small window with the four statements and an Apply button.

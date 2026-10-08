@@ -73,6 +73,8 @@ class Bot:
         self.milestones_done = []
         self.manifesto_path = cfg.get("manifesto_file", "manifesto.txt")
         self.manifesto_stamp = None
+        self.techniques_path = cfg.get("techniques_file", "techniques.txt")
+        self.techniques_stamp = None
 
     # --- helpers ----------------------------------------------------------
 
@@ -251,16 +253,32 @@ class Bot:
 
     # --- manifesto: re-read and recompile when the file changes -------------
 
-    def manifesto_loop(self):
-        """Watch manifesto.txt and apply edits to the running bot. A change costs one
-        compile call (about a cent); identical text is served from the rules cache."""
-        path = Path(self.manifesto_path)
+    def read_techniques(self):
         try:
-            self.manifesto_stamp = path.stat().st_mtime
+            return Path(self.techniques_path).read_text(encoding="utf-8")
         except OSError:
-            self.manifesto_stamp = None
+            return ""
+
+    def manifesto_loop(self):
+        """Watch both files and apply edits to the running bot. A manifesto change costs one
+        compile call (about a cent); identical text is served from the rules cache. A
+        techniques change costs nothing - that text is handed to Claude as written."""
+        path, tech = Path(self.manifesto_path), Path(self.techniques_path)
+        for p, attr in ((path, "manifesto_stamp"), (tech, "techniques_stamp")):
+            try:
+                setattr(self, attr, p.stat().st_mtime)
+            except OSError:
+                setattr(self, attr, None)
         while self.running:
             time.sleep(self.cfg.get("manifesto_reload_seconds", 2))
+            try:
+                tech_stamp = tech.stat().st_mtime
+            except OSError:
+                tech_stamp = None
+            if tech_stamp != self.techniques_stamp:
+                self.techniques_stamp = tech_stamp
+                self.brain.set_basics(self.read_techniques())
+                self.log(f"{tech.name} changed, applied (no recompile needed)")
             try:
                 stamp = path.stat().st_mtime
             except OSError:
@@ -431,6 +449,7 @@ class Bot:
     def run(self):
         self.log(self.pending_window_note)
         self.log("Compiling manifesto...")
+        self.brain.set_basics(self.read_techniques())
         self.rules = self.brain.compile_manifesto(self.statements, self.cfg.get("rules_cache", ".manifesto_rules.json"))
         self.brain.set_manifesto(self.rules)
         self.describe_rules()

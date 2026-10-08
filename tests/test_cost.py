@@ -293,6 +293,8 @@ class ManifestoReload(unittest.TestCase):
         self.bot.running = True
         self.bot.manifesto_path = str(self.path)
         self.bot.manifesto_stamp = None
+        self.bot.techniques_path = str(Path(self.dir) / "techniques.txt")
+        self.bot.techniques_stamp = None
         self.bot.statements = self.read()
         self.bot.milestones_done = ["old"]
         self.bot.objective = {"objective": "old one"}
@@ -315,6 +317,7 @@ class ManifestoReload(unittest.TestCase):
         brain = type("B", (), {})()
         brain.compile_manifesto = lambda st, cache: (self.compiled.append(st), rules)[1]
         brain.set_manifesto = lambda r: self.compiled.append("applied")
+        brain.set_basics = lambda text: self.compiled.append("basics")
         return brain
 
     def run_watcher(self, edit, until):
@@ -490,3 +493,39 @@ class EscapeKey(unittest.TestCase):
         e = self.executor()
         e.menu_may_be_open()
         self.assertEqual(e._execute({"type": "key", "key": "escape"}), "ok")
+
+
+class TechniquesFile(unittest.TestCase):
+    """Technique is handed to Claude as written, so editing it costs nothing to apply."""
+
+    def brain(self):
+        os.environ.setdefault("ANTHROPIC_API_KEY", "test-not-used")
+        from bot.brain import Brain, CostTracker
+        b = Brain({}, CostTracker(1.0), log=lambda *_: None)
+        b.set_manifesto({"survival_summary": "s", "code_rules": ["c"], "ambition_summary": "a",
+                         "temperament_summary": "t", "fight_or_flight": "fight",
+                         "ambition_milestones": ["8 logs"]})
+        return b
+
+    def test_techniques_reach_both_prompts(self):
+        b = self.brain()
+        b.set_basics("- To climb a one-block step, walk forward with jump held.")
+        self.assertIn("walk forward with jump held", b.tactician_system)
+        self.assertIn("walk forward with jump held", b.strategist_system)
+
+    def test_an_edit_applies_without_recompiling(self):
+        """set_basics re-renders the prompts from the rules it already has, so a technique
+        change needs no compile call and no new rules."""
+        b = self.brain()
+        b.set_basics("first version")
+        b.set_basics("second version")
+        self.assertIn("second version", b.tactician_system)
+        self.assertNotIn("first version", b.tactician_system)
+
+    def test_the_shipped_file_is_loadable_and_substantial(self):
+        text = (ROOT / "techniques.txt").read_text(encoding="utf-8")
+        body = [l for l in text.splitlines() if l.strip() and not l.startswith("#")]
+        self.assertGreater(len(body), 40, "the shipped playbook should actually say something")
+        b = self.brain()
+        b.set_basics(text)
+        self.assertNotIn("{", b.tactician_system, "no placeholder left unfilled")

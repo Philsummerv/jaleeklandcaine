@@ -75,6 +75,8 @@ def cmd_plan_once(args):
     print(f"Window: {screen.describe()}")
     costs = CostTracker(cfg["max_dollars_per_session"])
     brain = Brain(cfg, costs)
+    techniques = ROOT / cfg.get("techniques_file", "techniques.txt")
+    brain.set_basics(techniques.read_text(encoding="utf-8") if techniques.exists() else "")
     rules = brain.compile_manifesto(statements, ROOT / cfg.get("rules_cache", ".manifesto_rules.json"))
     print("Compiled rules:\n" + json.dumps(rules, indent=2))
     brain.set_manifesto(rules)

@@ -1,0 +1,85 @@
+# How to get around, and how to handle mobs and blocks. The bot's practical know-how.
+#
+# The manifesto says WHO the bot is - what it wants, what it refuses to do, how it carries
+# itself. This file is the technique underneath that: how to actually climb, dig, fight and
+# get unstuck. Where the two conflict, the manifesto wins ("never run from a fight" beats
+# "back away from a creeper").
+#
+# Lines starting with # are ignored. The running bot re-reads this file within a couple of
+# seconds of a save, and unlike the manifesto it costs NOTHING to change - it is handed to
+# Claude as written, not compiled. Add whatever you learn from watching it play.
+
+## Getting around
+- To climb a one-block step, walk forward with jump held. Jumping on the spot just lands
+  you where you started.
+- One block is the limit. If a wall is two blocks tall, stop trying: walk along it and look
+  for a lower step, or mine through it.
+- To get out of a pit, mine the wall in front of you at head height and then at your feet,
+  and walk out through the gap. Or look straight down, jump, and place a block under
+  yourself as you rise - repeat that to climb anywhere.
+- Near a drop, move with sneak on. It stops you walking off the edge.
+- Pick your line before you set off: aim for the slope or the terrace that steps down
+  gently, rather than walking at a cliff and hoping.
+- Drops over three blocks hurt, and badly over five. Go around, or step down in stages.
+- Water is a safe way down and you can swim back up it.
+- Never dig straight down - you cannot see what you are standing over.
+
+## Breaking and placing blocks
+- Hold the button down to break. Separate clicks restart the break each time and never
+  finish it. Use mine for blocks, never attack.
+- Check the aim first: a black outline is drawn around the block under the crosshair. No
+  outline means you are aimed at air or standing too far back - your reach is about four
+  blocks, so walk closer.
+- Expect roughly hardness x 5 seconds bare-handed: leaves instant, dirt about 2s, wood
+  about 3s, stone and terracotta about 7s. Give a stony block 12 seconds or the hold ends
+  just before it gives and the progress resets.
+- Match the tool: axe for wood, pickaxe for stone, shovel for dirt and sand.
+- Stone, terracotta and ore drop nothing without a pickaxe in hand - bare-handed you are
+  only clearing a path. Wood, dirt, sand and leaves always drop.
+- Walk over what you break to pick it up.
+- To place a block, aim at the face of a block next to where you want it and use.
+
+## Getting wood
+- Logs are the trunk, not the leaves. Leaves break instantly and give almost nothing.
+- Work a trunk from the bottom up; the highest logs may need you to jump or stand on
+  something.
+- If the ground is orange terracotta with no grass, there is no wood here worth hunting.
+  Head for green hills or a forest you can see in the distance instead of searching the
+  canyon you are in.
+- Replant a sapling on grass when you have one, so there is wood here next time.
+
+## Making tools
+- The order is logs, planks, sticks, crafting table, wooden pickaxe, cobblestone, stone
+  tools. No rung can be skipped.
+- One log gives four planks; two planks give sticks; four planks give a crafting table.
+- A pickaxe, axe or sword needs a table placed in the world - the 2x2 grid in your own
+  inventory is too small.
+- To use a table: select it in the hotbar, aim at flat ground, use to place it, then look
+  at it and use again to open it.
+- In Bedrock the recipes you can currently make are listed down the side of the crafting
+  screen. Click the recipe, then the result; no arranging in a grid.
+
+## Dealing with mobs
+- Swing while backing away rather than standing still, and re-aim between hits - they move.
+- Zombies and spiders have to reach you, so retreating while you hit them works well.
+- Skeletons shoot from range. Close the distance fast or put a block between you; standing
+  still in the open is the worst option.
+- Creepers hiss before they explode. Hit, step back, hit, step back - never stand beside one.
+- Swings have a cooldown. Timed hits do far more than spamming clicks.
+- Taking damage with nothing in view means it is behind you. Turn around.
+- They burn off at sunrise in the open, but not in caves or under cover.
+- Health comes back on its own while hunger is nearly full, so eating is how you heal.
+
+## Getting through the night
+- Mobs appear in the dark. Torches both light the way and stop them spawning nearby.
+- The fast shelter is a hole: dig two blocks into a hillside, step in, seal the entrance
+  behind you, and wait for light.
+- Charcoal comes from burning logs in a furnace; a torch is charcoal plus a stick.
+
+## Menus and screens
+- The death screen has a green Respawn button in the middle. Nothing works until it is
+  clicked, so click it first.
+- The pause menu's Resume Game button sits at the top of the menu panel.
+- Escape closes a menu you opened. With no menu open it opens the pause menu and freezes
+  the game, so only ever use it to close something.
+- Movement keys go into an open menu instead of the world. Close it before moving.

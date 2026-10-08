@@ -67,6 +67,9 @@ mine_break_threshold = 28
 # and it recompiles its rules and milestones and picks a fresh objective. A change costs one
 # compile call (about a cent); identical text is free, served from rules_cache.
 manifesto_file = "manifesto.txt"
+# Practical technique - climbing, mining, fighting, menus - handed to Claude as written.
+# Re-read just as often, and free to change: there is nothing to compile.
+techniques_file = "techniques.txt"
 manifesto_reload_seconds = 2
 
 log_file = "bot.log"
