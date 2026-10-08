@@ -10,10 +10,16 @@ import time
 
 import numpy as np
 
-from . import winapi
 from .screen import center_patch
 
 TICK = 0.01
+
+
+def winapi():
+    from . import winapi as mod  # Windows-only; imported lazily so the pure logic tests anywhere
+    return mod
+
+
 DIR_KEYS = {"forward": "w", "back": "s", "left": "a", "right": "d"}
 INTERRUPTIBLE = {"walk", "look", "wait", "sneak", "jump"}
 MENU_KEYS = {"inventory": "e", "drop": "q", "escape": "esc"}
@@ -26,7 +32,9 @@ def estimate_seconds(a):
     if t == "look":
         return 0.1 + (abs(a.get("yaw", 0)) + abs(a.get("pitch", 0))) / 400
     if t == "mine":
-        return min(float(a.get("seconds", 4.0)), 1.5)
+        # Usually breaks well before the cap, but assuming 1.5s made the tactician re-plan
+        # in the middle of every hand-mined block.
+        return min(float(a.get("seconds", 8.0)), 4.0)
     if t == "attack":
         return 0.4 * int(a.get("times", 1))
     return 0.15
@@ -108,22 +116,22 @@ class Executor(threading.Thread):
     def _hold(self, keys):
         for k in list(self.held - keys):
             if not self.dry_run:
-                winapi.key_up(k)
+                winapi().key_up(k)
             self.held.discard(k)
         for k in keys - self.held:
             if not self.dry_run:
-                winapi.key_down(k)
+                winapi().key_down(k)
             self.held.add(k)
 
     def _button(self, button, down):
         if down and button not in self.buttons:
             self.buttons.add(button)
             if not self.dry_run:
-                winapi.mouse_button(button, True)
+                winapi().mouse_button(button, True)
         elif not down and button in self.buttons:
             self.buttons.discard(button)
             if not self.dry_run:
-                winapi.mouse_button(button, False)
+                winapi().mouse_button(button, False)
 
     def release_all(self):
         self._hold(set())
@@ -132,11 +140,11 @@ class Executor(threading.Thread):
 
     def _move(self, dx, dy):
         if not self.dry_run and (dx or dy):
-            winapi.mouse_move_rel(dx, dy)
+            winapi().mouse_move_rel(dx, dy)
 
     def _tap(self, key, hold=0.05):
         if not self.dry_run:
-            winapi.tap(key, hold)
+            winapi().tap(key, hold)
         else:
             time.sleep(hold)
 
@@ -221,7 +229,7 @@ class Executor(threading.Thread):
             return "ok" if done else "interrupted"
 
         if t == "mine":
-            return self._mine(float(a.get("seconds", 4.0)))
+            return self._mine(float(a.get("seconds", 8.0)))
 
         if t == "attack":
             n = 0
@@ -274,7 +282,7 @@ class Executor(threading.Thread):
             x, y = self.screen.screen_point(float(a.get("x", 0.5)), float(a.get("y", 0.5)))
             button = a.get("button", "left")
             if not self.dry_run:
-                winapi.mouse_move_abs(x, y)
+                winapi().mouse_move_abs(x, y)
                 time.sleep(0.08)
             self._button(button, True)
             time.sleep(0.05)

@@ -8,13 +8,16 @@ import traceback
 
 import anthropic
 
-from . import winapi
 from .brain import BadResponse, Brain, BudgetExceeded, CostTracker
 from .executor import Executor
 from .pacing import call_reason, frame_change, frame_signature, looks_stuck, should_skip
 from .screen import HudReader, Screen, encode_jpeg
 
 MAX_SECONDS = 6.0
+# Mining needs its own ceiling. By hand a block takes hardness x 5 seconds: terracotta is
+# 6.25s and stone 7.5s, so a 6s cap meant the hold always ended just before the block gave
+# and the progress reset. The executor stops as soon as the block breaks anyway.
+MINE_MAX_SECONDS = 15.0
 
 
 def clean_plan(plan):
@@ -23,7 +26,8 @@ def clean_plan(plan):
     for a in plan[:10]:
         a = {k: v for k, v in a.items() if v is not None}
         if "seconds" in a:
-            a["seconds"] = max(0.05, min(float(a["seconds"]), MAX_SECONDS))
+            cap = MINE_MAX_SECONDS if a.get("type") == "mine" else MAX_SECONDS
+            a["seconds"] = max(0.05, min(float(a["seconds"]), cap))
         if "yaw" in a:
             a["yaw"] = max(-180.0, min(float(a["yaw"]), 180.0))
         if "pitch" in a:
@@ -354,6 +358,8 @@ class Bot:
         self.log("Code: " + " | ".join(self.rules["code_rules"]))
         if self.dry_run:
             self.log("DRY RUN: Claude will plan, but no keys or mouse input will be sent.")
+
+        from . import winapi  # Windows-only; imported here so clean_plan can be tested anywhere
 
         self.executor.start()
         for fn in (self.reflex_loop, self.strategist_loop, self.tactician_loop, self.status_loop):

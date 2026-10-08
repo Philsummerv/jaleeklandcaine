@@ -254,3 +254,19 @@ class StuckDetection(unittest.TestCase):
         self.assertLess(frame_change(frame_signature(wall), frame_signature(wall.copy())), 1.5)
         moved = np.roll(wall, 120, axis=1)
         self.assertLess(frame_change(frame_signature(wall), frame_signature(moved)), 1.5)  # flat wall
+
+
+class PlanClamping(unittest.TestCase):
+    def test_mining_gets_a_longer_ceiling_than_movement(self):
+        """Bare-handed, terracotta needs 6.25s and stone 7.5s. A 6s cap on mine ended the
+        hold just before the block gave, and the progress reset to zero every time."""
+        from bot.runner import clean_plan
+        plan = clean_plan([{"type": "mine", "seconds": 12}, {"type": "walk", "seconds": 12}])
+        self.assertEqual(plan[0]["seconds"], 12)
+        self.assertEqual(plan[1]["seconds"], 6.0)
+
+    def test_absurd_values_are_still_clamped(self):
+        from bot.runner import clean_plan
+        plan = clean_plan([{"type": "mine", "seconds": 600}, {"type": "look", "yaw": 9000}])
+        self.assertEqual(plan[0]["seconds"], 15.0)
+        self.assertEqual(plan[1]["yaw"], 180.0)
