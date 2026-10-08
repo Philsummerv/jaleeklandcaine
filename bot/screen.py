@@ -95,9 +95,17 @@ def heart_mask(px):
 
 
 def food_mask(px):
-    # Drumstick meat: orange/brown.
+    """Drumstick meat: a tan brown, measured as rgb(144,112,64), (128,112,64),
+    (160,128,64) and (128,96,64) on a 1920x991 Bedrock HUD.
+
+    Red minus green is the discriminator. The drumsticks sit around 16-32, while the
+    badlands terracotta behind them - rgb(192,112,64) and (176,96,64) - is around 80.
+    An earlier version required r - g > 40, which selected the terrain and rejected
+    every drumstick."""
     r, g, b = px[..., 0], px[..., 1], px[..., 2]
-    return (r > 140) & (g > 60) & (g < 150) & (b < 70) & (r - g > 40)
+    rg = r - g
+    return ((r >= 128) & (r <= 190) & (g >= 96) & (g <= 145) & (b <= 90)
+            & (rg >= 8) & (rg <= 42) & (g - b >= 20))
 
 
 def lava_mask(px):
