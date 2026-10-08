@@ -72,6 +72,9 @@ class Executor(threading.Thread):
         self.held = set()
         self.buttons = set()
         self.reflex_until = 0.0
+        # In Bedrock, escape with no menu open OPENS the pause menu, which freezes the
+        # game until something closes it. Only send it when a menu is believed to be open.
+        self.menu_open = False
         self.last_action_end = time.monotonic()
 
     # --- plan management (called from other threads) ----------------------
@@ -103,6 +106,11 @@ class Executor(threading.Thread):
                 "still_queued": [describe(a) for a in self.queue],
                 "recently_done": list(self.history),
             }
+
+    def menu_may_be_open(self):
+        """Told from outside when the HUD has vanished for a while: something is covering
+        the screen, so escape is worth allowing again."""
+        self.menu_open = True
 
     def in_reflex(self):
         return time.monotonic() < self.reflex_until
@@ -272,10 +280,17 @@ class Executor(threading.Thread):
             return "ok" if done else "interrupted"
 
         if t == "key":
-            key = MENU_KEYS.get(a.get("key"))
+            name = a.get("key")
+            if name == "escape" and not self.menu_open:
+                return "escape ignored: no menu was open (it would have opened the pause menu)"
+            key = MENU_KEYS.get(name)
             if key:
                 self._tap(key)
                 time.sleep(0.2)
+                if name == "inventory":
+                    self.menu_open = not self.menu_open
+                elif name == "escape":
+                    self.menu_open = False
             return "ok" if key else "unknown key"
 
         if t == "gui_click":

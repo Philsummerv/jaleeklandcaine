@@ -35,7 +35,7 @@ works the earliest unfinished milestone and reports which one, and the log shows
 
 1. `pip install -r requirements.txt`
 2. Create a file named `.env` in this folder containing `ANTHROPIC_API_KEY=sk-ant-...`.
-3. In Minecraft settings, turn on **Auto-Jump**, and use windowed or borderless mode at 1920×1080 if possible.
+3. In Minecraft settings, turn on **Auto-Jump** (the bot relies on it to climb one-block steps; without it, it gets stuck on terrain it should walk over) and turn **off** the tutorial hints (their popups cover the health and hunger bars), and use windowed or borderless mode at 1920×1080 if possible.
 4. Edit `manifesto.txt`.
 
 ## First run: calibrate on a single-player world

@@ -456,3 +456,37 @@ class HourlyRate(unittest.TestCase):
         self.assertAlmostEqual(t.rate_per_hour(5.0), tactician / 5 * 60, places=6)
         self.assertLess(t.rate_per_hour(5.0), t.total / 5 * 60, "the compile must not inflate it")
         self.assertIn("one-off", t.summary(), "but it should still be reported")
+
+
+class EscapeKey(unittest.TestCase):
+    """In Bedrock, escape with no menu open opens the pause menu and freezes the game.
+    The bot did that to itself twice in one run, then spent the time reading the menu."""
+
+    def executor(self):
+        from bot.executor import Executor
+        e = Executor.__new__(Executor)
+        e.dry_run = True
+        e.menu_open = False
+        e.held = set()
+        e.buttons = set()
+        return e
+
+    def test_escape_is_ignored_with_no_menu_open(self):
+        e = self.executor()
+        result = e._execute({"type": "key", "key": "escape"})
+        self.assertIn("ignored", result)
+        self.assertFalse(e.menu_open)
+
+    def test_inventory_opens_then_escape_closes(self):
+        e = self.executor()
+        self.assertEqual(e._execute({"type": "key", "key": "inventory"}), "ok")
+        self.assertTrue(e.menu_open)
+        self.assertEqual(e._execute({"type": "key", "key": "escape"}), "ok")
+        self.assertFalse(e.menu_open, "and escape is refused again afterwards")
+        self.assertIn("ignored", e._execute({"type": "key", "key": "escape"}))
+
+    def test_a_covered_hud_re_enables_escape(self):
+        """If something else opened a menu, the runner says so and escape works again."""
+        e = self.executor()
+        e.menu_may_be_open()
+        self.assertEqual(e._execute({"type": "key", "key": "escape"}), "ok")

@@ -149,6 +149,8 @@ class Bot:
         lava_fires = collections.deque(maxlen=12)
         saved_lava_frame = False
         last_sig = None
+        no_hud_frames = 0
+        no_hud_cooldown = 0.0
         stuck_frames = 0
         stuck_cooldown = 0.0
         stuck_needed = max(int(c.get("stuck_seconds", 1.5) / 0.1), 1)
@@ -160,16 +162,32 @@ class Bot:
                 continue
             hud = self.hud_reader.read(frame)
             self.hud = hud
-            if not self.is_active() or not hud["hud_visible"]:
+            if not self.is_active():
                 prev_health = hud["health"]
+                no_hud_frames = 0
                 continue
+            if not hud["hud_visible"]:
+                # The bars are covered: a menu, the death screen, or a hint popup. The
+                # tactician has to click its way out, since nothing here can read it.
+                prev_health = hud["health"]
+                no_hud_frames += 1
+                if no_hud_frames > c.get("no_hud_seconds", 3) / 0.1 and time.monotonic() > no_hud_cooldown:
+                    no_hud_cooldown = time.monotonic() + 8
+                    self.executor.menu_may_be_open()
+                    self.alert("no health or hunger bar on screen for a few seconds: you are on a menu "
+                               "or the death screen. Look at the screenshot and click the button you "
+                               "can see with gui_click - Respawn if you died, Resume Game if paused")
+                continue
+            no_hud_frames = 0
             now = time.monotonic()
             rules = self.rules  # re-read each pass: the manifesto can change while running
             health = hud["health"]
 
             if health is not None and prev_health is not None and health < prev_health - 0.04:
                 self.last_damage = now
-                self.alert(f"took damage, health now {health:.0%}")
+                self.alert(f"took damage, health now {health:.0%}"
+                           + ("" if self.last_observation and "zombie" in self.last_observation.lower()
+                              else ". If you can't see what hit you it is probably behind you: look yaw 180"))
             prev_health = health
 
             # A frame or two below the line is usually a misread, not a wounded player.
