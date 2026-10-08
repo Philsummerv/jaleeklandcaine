@@ -95,22 +95,19 @@ def heart_mask(px):
 
 
 def food_mask(px):
-    """Hunger drumsticks, keyed on colours measured from a raw 1920x991 HUD crop.
+    """Hunger drumsticks, keyed only on their red meat: rgb(208,32,32) and rgb(176,16,16).
 
-    Two parts of the icon: the red meat, rgb(208,32,32), and the cooked brown,
-    rgb(144,96,64). Validated against the hearts crop alongside it, which shows the same
-    terrain with no drumsticks in it: the brown band matches 824 px here and exactly 0
-    there, so it is icon, not landscape. Badlands terracotta, rgb(192,112,64) and
-    (176,96,64), sits just outside the brown band and is rejected.
+    Measured from raw HUD crops. The icon's brown body is deliberately excluded: across
+    two frames with the same full hunger bar, the red matched 540 px both times while the
+    brown swung from 824 to 270 with the light behind it. Those browns are edge pixels
+    blending with the world, so any mask keyed on them tracks the landscape rather than
+    the bar. The red does not move.
 
-    An earlier version keyed on r - g > 40, which matched the terracotta and no drumstick
-    at all; its replacement fitted the sunlit terrain between the icons. Both were tuned
-    from rescaled screenshots rather than raw pixels. Retune from calibration_hud.png.
+    This is the same family of threshold as heart_mask, which is fine: the two bars are
+    read from separate boxes, so they never compete. Retune from calibration_hud.png.
     """
     r, g, b = px[..., 0], px[..., 1], px[..., 2]
-    meat = (r >= 176) & (g <= 72) & (b <= 72)
-    cooked = (r >= 144) & (r <= 175) & (g >= 96) & (g <= 127) & (b >= 64) & (b <= 95)
-    return meat | cooked
+    return (r >= 176) & (g <= 72) & (b <= 72)
 
 
 def lava_mask(px):

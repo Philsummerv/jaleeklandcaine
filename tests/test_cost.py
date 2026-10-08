@@ -161,17 +161,29 @@ class HudMasks(unittest.TestCase):
                           ("orange terracotta", (161, 83, 37)), ("grass", (90, 140, 60))):
             self.assertFalse(self.heart(self.px(*rgb))[0, 0], name)
 
-    def test_food_mask_matches_drumsticks_not_terrain(self):
-        """Colours measured from a raw HUD crop. The brown band was validated against the
-        hearts crop beside it - same terrain, no drumsticks - where it matched 0 pixels."""
-        for name, rgb in (("red meat", (208, 32, 32)), ("cooked brown", (144, 96, 64)),
-                          ("cooked brown, light", (160, 112, 80))):
+    def test_food_mask_matches_the_drumstick_red_only(self):
+        """Measured from raw HUD crops. The icon's brown body is excluded on purpose: it
+        is edge pixels blending with the world, and moves with the light behind the bar."""
+        for name, rgb in (("red meat", (208, 32, 32)), ("dark red meat", (176, 16, 16))):
             self.assertTrue(self.food(self.px(*rgb))[0, 0], name)
-        for name, rgb in (("terracotta behind bar", (192, 112, 64)), ("dark terracotta", (176, 96, 64)),
-                          ("red sand", (190, 105, 60)), ("terracotta", (152, 94, 67)),
-                          ("orange terracotta", (161, 83, 37)), ("shadowed brown", (96, 48, 32)),
-                          ("dirt", (134, 96, 67)), ("grass", (90, 140, 60))):
+        for name, rgb in (("cooked brown, lit", (160, 112, 80)), ("cooked brown, dim", (144, 96, 64)),
+                          ("terracotta behind bar", (192, 112, 64)), ("dark terracotta", (176, 96, 64)),
+                          ("red sand", (190, 105, 60)), ("orange terracotta", (161, 83, 37)),
+                          ("lava", (255, 120, 0)), ("grass", (90, 140, 60))):
             self.assertFalse(self.food(self.px(*rgb))[0, 0], name)
+
+    def test_bars_read_proportionally(self):
+        """Measured: 2970 px at ten hearts, 1656 at five and a half - 55.8% against 55%."""
+        from bot.screen import HudReader
+        cfg = {"health_region": [0, 0, 1, 1], "hunger_region": [0, 0, 1, 1],
+               "lava_region": [0, 0, 1, 1], "min_calibration_pixels": 1, "max_confirm_frames": 1}
+        reader = HudReader(cfg)
+        bar = np.zeros((10, 200, 3), np.uint8)
+        bar[:, :100] = (240, 16, 16)
+        reader.read(bar)
+        half = bar.copy()
+        half[:, 55:] = (96, 48, 32)        # four and a half hearts worth gone, terrain behind
+        self.assertAlmostEqual(reader.read(half)["health"], 0.55, places=2)
 
     def test_cooked_brown_is_not_mistaken_for_a_heart(self):
         # The two bars share a red, which is harmless: each mask only ever sees its own
