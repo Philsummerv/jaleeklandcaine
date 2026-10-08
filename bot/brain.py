@@ -229,6 +229,8 @@ The bot's internal manifesto (in priority order):
 3. AMBITION (long-term purpose): {ambition}
 4. TEMPERAMENT (style and idle behaviour): {temperament}
 
+Default reaction to hostile mobs: {stance}.
+
 The ladder of milestones toward the AMBITION, in order:
 {milestones}
 
@@ -245,6 +247,8 @@ Manifesto (priority order):
 2. CODE (never break these): {code}
 3. AMBITION: {ambition}
 4. TEMPERAMENT: {temperament}
+
+Default reaction to hostile mobs: {stance}. When it is "fight", a hostile mob in view comes before the objective: put the crosshair on it with look, then attack several times, and keep at it until it is dead - mobs move, so re-aim every round. Zombies and spiders have to touch you, skeletons shoot from a distance so close on them fast, and a creeper blows up if you stand beside it, so step back between hits. When it is "flee", get away first and carry on afterwards.
 
 Actions (JSON objects, executed in order):
 - walk: direction forward|back|left|right, seconds, optional sprint, jump (hold jump, for climbing 1-block steps), sneak (move slowly without falling off edges - use it near any drop), optional yaw/pitch to turn smoothly WHILE walking.
@@ -303,6 +307,7 @@ class Brain:
             "code": " ".join(rules["code_rules"]),
             "ambition": rules["ambition_summary"],
             "temperament": rules["temperament_summary"],
+            "stance": rules.get("fight_or_flight", "depends"),
         }
         milestones = rules.get("ambition_milestones") or ["(none worked out)"]
         self.strategist_system = STRATEGIST_SYSTEM.format(

@@ -398,3 +398,35 @@ class ObscuredHud(unittest.TestCase):
         reading = reader.read(self.bars(10, 100))
         self.assertTrue(reading["hud_visible"])
         self.assertAlmostEqual(reading["health"], 0.10, places=2)
+
+
+class ManifestoReachesThePrompts(unittest.TestCase):
+    """fight_or_flight was compiled, stored, and never passed to either prompt, so nothing
+    ever told the bot how to react to a mob. It watched a zombie kill it twice."""
+
+    RULES = {"survival_summary": "s", "code_rules": ["c"], "ambition_summary": "a",
+             "temperament_summary": "t", "fight_or_flight": "fight",
+             "ambition_milestones": ["8 logs", "a wooden pickaxe"]}
+
+    def brain(self, **over):
+        os.environ.setdefault("ANTHROPIC_API_KEY", "test-not-used")
+        from bot.brain import Brain, CostTracker
+        b = Brain({}, CostTracker(1.0), log=lambda *_: None)
+        b.set_manifesto({**self.RULES, **over})
+        return b
+
+    def test_stance_reaches_both_prompts(self):
+        b = self.brain()
+        self.assertIn("fight", b.tactician_system)
+        self.assertIn("fight", b.strategist_system)
+
+    def test_milestones_reach_the_strategist(self):
+        b = self.brain()
+        self.assertIn("8 logs", b.strategist_system)
+        self.assertIn("a wooden pickaxe", b.strategist_system)
+
+    def test_nothing_is_left_unformatted(self):
+        """A placeholder the rules don't fill would reach Claude as literal braces."""
+        b = self.brain()
+        for name, text in (("tactician", b.tactician_system), ("strategist", b.strategist_system)):
+            self.assertNotIn("{", text, f"{name} prompt has an unfilled placeholder")
