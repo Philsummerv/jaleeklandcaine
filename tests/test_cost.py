@@ -529,3 +529,33 @@ class TechniquesFile(unittest.TestCase):
         b = self.brain()
         b.set_basics(text)
         self.assertNotIn("{", b.tactician_system, "no placeholder left unfilled")
+
+
+class DamageConfirmation(unittest.TestCase):
+    """Readings were seen swinging 39% -> 81% -> 36% inside one second, each bounce
+    announced as an attack. Health cannot do that; a drop has to hold to be believed."""
+
+    @staticmethod
+    def alerts_for(readings, confirm=3, threshold=0.04):
+        """Replay a sequence of health readings through the damage rule."""
+        alerts, previous, run = [], None, 0
+        for health in readings:
+            dropped = previous is not None and health < previous - threshold
+            run = run + 1 if dropped else 0
+            if run >= confirm:
+                run = 0
+                alerts.append(health)
+            if not dropped:
+                previous = health
+        return alerts
+
+    def test_a_bouncing_reading_raises_nothing(self):
+        bounce = [1.0, 0.39, 0.81, 0.36, 0.85, 0.39, 0.81]
+        self.assertEqual(self.alerts_for(bounce), [])
+
+    def test_a_real_run_of_damage_still_registers(self):
+        falling = [1.0, 0.94, 0.88, 0.80, 0.72, 0.64]
+        self.assertTrue(self.alerts_for(falling), "a sustained fall is a real hit")
+
+    def test_healing_raises_nothing(self):
+        self.assertEqual(self.alerts_for([0.4, 0.5, 0.6, 0.7, 0.8, 1.0]), [])

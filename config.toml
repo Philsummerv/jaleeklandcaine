@@ -36,6 +36,9 @@ tactician_static_interval = 3.0          # with an unchanged screen, call at mos
 # Reflex safety. The lava detector keys on colour, and bright orange rock (badlands)
 # can read as lava; backing away repeatedly has walked the bot into holes.
 flee_confirm_frames = 3       # health must read low this many frames running before fleeing
+damage_confirm_frames = 3     # and a drop must hold this many frames before it counts as a hit
+damage_threshold = 0.04       # how much of the bar must go before it counts as a hit at all
+save_damage_frame = true      # save damage_trigger.png the first time, with the pixel counts logged
 lava_max_backoffs = 3         # after this many lava triggers in the window, stop backing off
 lava_window_seconds = 20      # and hand the decision to the tactician instead
 save_lava_frame = true        # save lava_trigger.png the first time it fires, for tuning
