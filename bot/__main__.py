@@ -52,9 +52,10 @@ def cmd_run(args):
     Bot(cfg, statements, dry_run=args.dry_run).run()
 
 
-def plan_countdown(screen, seconds):
-    """Give the user time to get back in-world before the screenshot.
-    No input is sent by plan-once, so an unfocused window is a warning, not an error."""
+def grab_countdown(screen, seconds):
+    """Give the user time to get back in-world before the screenshot. The HUD and the
+    world are only visible while playing, not on the pause menu. These commands send no
+    input, so an unfocused window is a warning, not an error."""
     print(f"Switch to Minecraft and press Esc to resume play. Screenshot in {seconds}s...")
     for i in range(seconds, 0, -1):
         print(f"  {i}", flush=True)
@@ -77,7 +78,7 @@ def cmd_plan_once(args):
     print("Compiled rules:\n" + json.dumps(rules, indent=2))
     brain.set_manifesto(rules)
     if args.wait:
-        plan_countdown(screen, args.wait)
+        grab_countdown(screen, args.wait)
     img = encode_jpeg(screen.grab(), cfg["screenshot_width"], cfg.get("jpeg_quality", 70))
     strategy, c1 = brain.strategize(img, {"current_objective": None, "previous_objectives": []})
     print(f"\nStrategist (${c1:.4f}):\n" + json.dumps(strategy, indent=2))
@@ -97,6 +98,8 @@ def cmd_calibrate(args):
     if not screen.locate():
         sys.exit(f"No window titled '{cfg['window_title']}' found. Start Minecraft first.")
     print(f"Window: {screen.describe()}")
+    if args.wait:
+        grab_countdown(screen, args.wait)
     frame = screen.grab()
     h, w = frame.shape[:2]
     reading = HudReader({**cfg["hud"], "min_calibration_pixels": 1}).read(frame)
@@ -118,6 +121,11 @@ def cmd_calibrate(args):
     img.save(out)
     print(f"Window: {w}x{h}. Heart pixels: {reading['raw_hearts']}, food pixels: {reading['raw_food']}, "
           f"lava fraction: {reading['lava']:.3f}")
+    if reading["raw_hearts"] < 40 or reading["raw_food"] < 40:
+        print("\nAlmost no heart or food pixels found. Usual causes, in order:\n"
+              "  1. The shot caught the pause menu or a loading screen - use --wait and resume play first.\n"
+              "  2. Creative or Peaceful mode, which draw no hearts or hunger bar - calibrate in Survival.\n"
+              "  3. The regions are in the wrong place - compare the boxes in calibration.png with the HUD.")
     print(f"Saved {out}. The green box should contain your hearts and the blue box your hunger bar;"
           " adjust [hud] regions in config.toml if not.")
 
@@ -159,7 +167,9 @@ def main():
     po = sub.add_parser("plan-once", help="one planning round, printed, no input")
     po.add_argument("--wait", type=int, default=0, metavar="SECONDS",
                     help="count down before the screenshot, so you can get back in-world first")
-    sub.add_parser("calibrate", help="check the HUD reader regions")
+    cal = sub.add_parser("calibrate", help="check the HUD reader regions")
+    cal.add_argument("--wait", type=int, default=0, metavar="SECONDS",
+                     help="count down before the screenshot, so you can get back in-world first")
     sub.add_parser("test-input", help="check controls and mouse sensitivity")
     args = p.parse_args()
     {"run": cmd_run, "plan-once": cmd_plan_once, "calibrate": cmd_calibrate,
