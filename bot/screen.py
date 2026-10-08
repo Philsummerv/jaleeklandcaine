@@ -135,6 +135,8 @@ class HudReader:
         m = max(int(cfg.get("smooth_frames", 3)), 1)
         self._hearts_recent = collections.deque(maxlen=m)
         self._food_recent = collections.deque(maxlen=m)
+        self.max_fall_per_frame = float(cfg.get("max_fall_per_frame", 0.05))
+        self._last_good = None
 
     @staticmethod
     def _confirm(current_max, seen):
@@ -164,8 +166,21 @@ class HudReader:
         self.max_food = self._confirm(self.max_food, self._food_seen)
         health = min(hearts_s / self.max_hearts, 1.0) if self.max_hearts >= self.min_pixels else None
         hunger = min(food_s / self.max_food, 1.0) if self.max_food >= self.min_pixels else None
-        # Both bars vanishing together means the HUD was not on screen, not a dying player.
+
+        # Hunger is the canary. It drains over minutes and can only rise when the player
+        # eats, so a sudden collapse is never real: something is covering the bar. Bedrock's
+        # own hint popups ("Scroll or press 2 to hold item") sit right on top of the HUD,
+        # which read as 0% hunger and 6% health on a healthy, well-fed player. Health alone
+        # cannot be checked this way - a fall really does take most of it at once.
         hud_visible = not (hearts_s == 0 and food_s == 0)
+        if hud_visible and hunger is not None and self._last_good is not None:
+            previous = self._last_good[1]
+            if previous is not None and previous - hunger > self.max_fall_per_frame:
+                hud_visible = False
+        if hud_visible:
+            self._last_good = (health, hunger)
+        elif self._last_good is not None:
+            health, hunger = self._last_good      # keep the last trustworthy reading
         return {"health": health, "hunger": hunger, "lava": lava, "hud_visible": hud_visible,
                 "raw_hearts": hearts, "raw_food": food}
 

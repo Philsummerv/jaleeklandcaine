@@ -82,5 +82,8 @@ hunger_region = [0.503, 0.872, 0.645, 0.912]   # was [0.50, 0.83, 0.70, 0.935]
 max_confirm_frames = 3        # a higher "full bar" reading must hold this many frames to count
 smooth_frames = 5             # readings are the median of this many frames (reflexes run at 10 Hz),
                               # so a menu or screen transition can't read as a dying player
+max_fall_per_frame = 0.05     # hunger drains over minutes, so a faster fall than this means
+                              # something is covering the bar (Bedrock's hint popups sit on it).
+                              # That frame is discarded, health included.
 lava_region   = [0.30, 0.35, 0.70, 0.85]
 lava_fraction = 0.12          # share of lava-colored pixels ahead that triggers the reflex

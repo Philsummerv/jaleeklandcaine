@@ -179,7 +179,7 @@ class HudMasks(unittest.TestCase):
         from bot.screen import HudReader
         cfg = {"health_region": [0, 0, 1, 1], "hunger_region": [0, 0, 1, 1],
                "lava_region": [0, 0, 1, 1], "min_calibration_pixels": 1,
-               "max_confirm_frames": 1, "smooth_frames": 5}
+               "max_confirm_frames": 1, "smooth_frames": 5, "max_fall_per_frame": 1.0}
         cfg.update(over)
         return HudReader(cfg)
 
@@ -200,18 +200,22 @@ class HudMasks(unittest.TestCase):
             reading = reader.read(self.bar(55))
         self.assertAlmostEqual(reading["health"], 0.55, places=2)
 
-    def test_single_bad_frame_is_ignored(self):
-        """A menu or a screen transition hides the HUD for a frame or two. That must not
-        read as a player at zero health, which is what sets the flee reflex off."""
+    def test_a_hidden_hud_never_reads_as_zero_health(self):
+        """A menu, a transition or a hint popup hides the bars. There is no reading to be
+        had from those frames, so the last trustworthy one stands: an empty HUD is not a
+        dying player, and a dead one gets a death screen rather than empty bars."""
         reader = self.reader()
         for _ in range(5):
             reader.read(self.bar(100))
         blank = np.zeros((10, 200, 3), np.uint8)
-        for i in range(2):
-            self.assertEqual(reader.read(blank)["health"], 1.0, f"frame {i + 1} should be ignored")
-        third = reader.read(blank)
-        self.assertEqual(third["health"], 0.0, "a sustained reading should still get through")
-        self.assertFalse(third["hud_visible"], "both bars empty means the HUD is not on screen")
+        for i in range(4):
+            reading = reader.read(blank)
+            self.assertEqual(reading["health"], 1.0, f"frame {i + 1} must not invent a reading")
+        self.assertFalse(reading["hud_visible"], "but it should say the HUD was unreadable")
+        for _ in range(3):      # the median window has to refill before it trusts them again
+            back = reader.read(self.bar(55))
+        self.assertTrue(back["hud_visible"])
+        self.assertAlmostEqual(back["health"], 0.55, places=2)
 
     def test_cooked_brown_is_not_mistaken_for_a_heart(self):
         # The two bars share a red, which is harmless: each mask only ever sees its own
@@ -348,3 +352,49 @@ class ManifestoReload(unittest.TestCase):
         self.assertEqual(self.bot.statements, before, "a half-written file must not be applied")
         self.assertEqual(self.compiled, [], "and must not be paid for")
         self.assertTrue(any("not usable" in m for m in self.bot.logged))
+
+
+class ObscuredHud(unittest.TestCase):
+    """Measured from lava_trigger.png: a Bedrock hint popup covering the bars read as
+    156/2970 health and 0/540 hunger on a player at full health and full hunger."""
+
+    def reader(self):
+        from bot.screen import HudReader
+        return HudReader({"health_region": [0, 0, 0.5, 1], "hunger_region": [0.5, 0, 1, 1],
+                          "lava_region": [0, 0, 1, 1], "min_calibration_pixels": 1,
+                          "max_confirm_frames": 1, "smooth_frames": 1, "max_fall_per_frame": 0.05})
+
+    @staticmethod
+    def bars(hearts, food):
+        a = np.zeros((10, 400, 3), np.uint8)
+        a[:, :hearts] = (240, 16, 16)          # health box
+        a[:, 200:200 + food] = (208, 32, 32)   # hunger box
+        return a
+
+    def test_popup_over_the_bars_is_rejected(self):
+        reader = self.reader()
+        for _ in range(3):
+            reading = reader.read(self.bars(100, 100))
+        self.assertEqual(reading["hunger"], 1.0)
+        covered = reader.read(self.bars(5, 0))      # the popup frame
+        self.assertFalse(covered["hud_visible"])
+        self.assertEqual(covered["health"], 1.0, "the last trustworthy reading should stand")
+        self.assertEqual(covered["hunger"], 1.0)
+
+    def test_real_hunger_drain_still_gets_through(self):
+        reader = self.reader()
+        for _ in range(3):
+            reader.read(self.bars(100, 100))
+        for food in (98, 96, 94, 92, 90):           # a drumstick lost over several frames
+            reading = reader.read(self.bars(100, food))
+        self.assertTrue(reading["hud_visible"])
+        self.assertAlmostEqual(reading["hunger"], 0.90, places=2)
+
+    def test_a_fall_still_reads_as_damage(self):
+        """Health may legitimately collapse in one frame; only hunger is the canary."""
+        reader = self.reader()
+        for _ in range(3):
+            reader.read(self.bars(100, 100))
+        reading = reader.read(self.bars(10, 100))
+        self.assertTrue(reading["hud_visible"])
+        self.assertAlmostEqual(reading["health"], 0.10, places=2)
