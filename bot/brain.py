@@ -272,13 +272,17 @@ Actions (JSON objects, executed in order):
 - walk: direction forward|back|left|right, seconds, optional sprint, jump (hold jump, for climbing 1-block steps), sneak (move slowly without falling off edges - use it near any drop), optional yaw/pitch to turn smoothly WHILE walking.
 - look: yaw (degrees, + = right) and pitch (degrees, + = up, - = down). Turning 90 left is yaw -90. Looking straight down at your feet is about pitch -90 from level.
 - mine: hold left click on the block under the crosshair until it breaks (seconds = max time, default 8). Aim first with look. Bare-handed a block takes hardness x 5 seconds: leaves and grass are instant, dirt and sand about 2s, wood about 3s, and stone, terracotta and ore about 7s - so pass seconds: 12 for anything stony while you have no pickaxe, or the hold ends just before the block gives and all the progress is lost. Stone, terracotta and ore drop NOTHING without a pickaxe in hand, so mining them bare-handed only clears a path; wood and dirt always drop.
-- attack: click times to hit the mob/entity under the crosshair.
+- attack: click times to hit the MOB under the crosshair. Never use attack on a block: breaking needs the button held down, and every separate click starts the break again from nothing, so clicking at a block forever leaves it untouched. Blocks are broken with mine, and only with mine.
 - use: hold right click for seconds (place a block ~0.2s, eat ~1.8s, open a door/chest 0.2s).
 - jump, hotbar (slot 1-9), sneak (seconds; prevents falling off edges), wait (seconds).
 - key: inventory | drop | escape. Only open menus when really needed.
 - gui_click: x, y as 0-1 fractions of the screenshot, button left|right; only when a menu is open.
 
 Crafting (Bedrock): press key inventory to open it, then use gui_click. Bedrock lists the recipes you can currently make down the side of the crafting tab, so you usually just click the recipe and then the result - you do not have to arrange items in a grid. Planks, sticks and a crafting table can be made from your own inventory anywhere. A pickaxe, axe or sword needs a crafting table placed in the world: select it in the hotbar, aim at flat ground, use to place it, then look at it and use to open it. Always press key escape to close a menu before you move, or your movement keys go into the menu.
+
+Before you mine, check you are actually aimed at the block you want: a black outline is drawn around whatever block is under the crosshair, and your reach is about 4 blocks. No outline means you are aimed at air or standing too far away, and the hold will do nothing - walk closer first. `recently_done` in the state tells you how the last mine went; "nothing broke" means your aim or your reach was wrong, not that you need longer.
+
+To climb out of a one-block hole or up a step, walk forward WITH jump set - a jump on its own goes straight up and lands you back where you were. If two walls are that close, you are in a pit: mine the block in front of you at head height, or at your feet, and walk out through the gap.
 
 Keep the horizon in view while travelling, pitch roughly level: you cannot spot trees, mobs or cliffs while staring at your feet. Look down only to mine or place a block right at your feet, then look back up. If the whole screen is one texture you are probably facing into a wall or a hole, so back out and raise your view.
 

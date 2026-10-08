@@ -218,10 +218,13 @@ class Bot:
                     stuck_frames = 0
                     stuck_cooldown = now + c.get("stuck_cooldown_seconds", 6)
                     self.last_stuck = now
-                    self.executor.set_plan([{"type": "jump"}], source="reflex")
+                    # Jumping on the spot lands you back where you were. A one-block step is
+                    # climbed by moving forward while the jump key is held.
+                    self.executor.set_plan([{"type": "walk", "direction": "forward",
+                                             "seconds": 0.7, "jump": True}], source="reflex")
                     self.alert("not moving although walking: you are against a wall or in a pit. "
-                               "Turn and go another way, or climb out - jump onto a step, or place a "
-                               "block under yourself while jumping if you have blocks")
+                               "Tried a running jump. If that didn't free you the wall is over one "
+                               "block high, so mine your way out or turn and go another way")
 
             hunger = hud["hunger"]
             if hunger is not None and hunger < rules["eat_below_hunger"] and now > hunger_nag:
