@@ -9,6 +9,20 @@
 # seconds of a save, and unlike the manifesto it costs NOTHING to change - it is handed to
 # Claude as written, not compiled. Add whatever you learn from watching it play.
 
+## Reading the screen before you decide
+- The crosshair is the exact centre. You affect whatever is under it, nothing else.
+- A black outline is drawn around the block under the crosshair. No outline, no block: you
+  are aimed at air, or past your four-block reach.
+- The hotbar is the row of nine slots at the bottom. A number in the corner of a slot is
+  how many of that item you have. An empty hotbar means you are holding nothing and have
+  collected nothing yet.
+- Items you have picked up appear in the hotbar within a second. If you broke something and
+  no slot changed, you did not collect it - walk over where it fell.
+- Hearts, top left of the HUD, are health. Drumsticks are hunger. Both are ten icons.
+- A black panel over the middle of the screen is a menu, not the world.
+- Distance is hard to judge from a screenshot. If something looks two blocks away it is
+  often five. When in doubt, walk toward it and look again rather than acting at range.
+
 ## Getting around
 - To climb a one-block step, walk forward with jump held. Jumping on the spot just lands
   you where you started.
@@ -24,22 +38,6 @@
 - Water is a safe way down and you can swim back up it.
 - Never dig straight down - you cannot see what you are standing over.
 
-## Breaking and placing blocks
-- Hold the button down to break. Separate clicks restart the break each time and never
-  finish it. Use mine for blocks, never attack.
-- Check the aim first: a black outline is drawn around the block under the crosshair. No
-  outline means you are aimed at air or standing too far back - your reach is about four
-  blocks, so walk closer. If you can see there is no outline, do not mine anyway: move,
-  then look again. Mining with nothing under the crosshair wastes the whole hold.
-- Expect roughly hardness x 5 seconds bare-handed: leaves instant, dirt about 2s, wood
-  about 3s, stone and terracotta about 7s. Give a stony block 12 seconds or the hold ends
-  just before it gives and the progress resets.
-- Match the tool: axe for wood, pickaxe for stone, shovel for dirt and sand.
-- Stone, terracotta and ore drop nothing without a pickaxe in hand - bare-handed you are
-  only clearing a path. Wood, dirt, sand and leaves always drop.
-- Walk over what you break to pick it up.
-- To place a block, aim at the face of a block next to where you want it and use.
-
 ## Searching for something you cannot see yet
 - Pick a bearing and hold it. Walking twenty seconds in one direction gets you somewhere;
   re-deciding every three seconds leaves you where you started.
@@ -52,22 +50,49 @@
 - If the journal shows you have been in the same place for a minute, the approach is not
   working. Leave, do not keep adjusting.
 
+## Aiming at something you can see
+- The view is roughly 70 degrees across and 40 high. So to turn to something: how far it
+  sits from the centre, as a fraction of the half-width, times 35 degrees. A quarter of the
+  way to the left edge is about yaw -9; halfway, about -18; at the very edge, about -35.
+  Use the same with 20 degrees for pitch, positive up.
+- Make the turn, then look at the next screenshot before swinging. One turn is rarely exact,
+  and a second small correction is cheaper than hitting the ground.
+- Standing right next to something means looking slightly DOWN at it, not level - mobs and
+  blocks at your feet are below the centre line.
+
+## Breaking and placing blocks
+- Hold the button down to break. Separate clicks restart the break each time and never
+  finish it. Use mine for blocks, never attack.
+- Check the aim first: no outline means no block. If you can see there is no outline, do
+  not mine anyway - move, then look again. Mining at nothing wastes the whole hold.
+- Expect roughly hardness x 5 seconds bare-handed: leaves instant, dirt about 2s, wood
+  about 3s, stone and terracotta about 7s. Give a stony block 12 seconds or the hold ends
+  just before it gives and the progress resets.
+- Match the tool: axe for wood, pickaxe for stone, shovel for dirt and sand.
+- Stone, terracotta and ore drop nothing without a pickaxe in hand - bare-handed you are
+  only clearing a path. Wood, dirt, sand and leaves always drop.
+- Walk over what you break to pick it up. Drops sit where the block was for a few minutes.
+- To place a block, aim at the face of a block next to where you want it and use.
+
 ## Getting wood
 - Logs are the trunk, not the leaves. Leaves break instantly and give almost nothing.
-- Leaves get in the way. On a spruce or any dense tree the trunk is usually behind a
-  screen of leaves, and you cannot reach through them: break the leaves in front first,
-  then the trunk behind. They take no time at all.
+- Leaves get in the way. On a spruce or any dense tree the trunk is usually behind a screen
+  of leaves, and you cannot reach through them: break the leaves in front first, then the
+  trunk behind. They take no time at all.
 - A trunk seen from a few blocks away is often not the block under your crosshair. The
-  thing you are aimed at may be the ground or a leaf in front of it, which looks nearly
-  the same from a distance. Walk right up to the trunk until it fills the middle of the
-  screen before you start.
-- Check the result of the last mine before repeating it. "NOTHING HAPPENED" means you
-  were aimed at nothing - walking closer fixes that far more often than holding longer.
-- Work a trunk from the bottom up; the highest logs may need you to jump or stand on
-  something.
+  thing you are aimed at may be the ground or a leaf in front of it, which looks nearly the
+  same from a distance. Walk right up to the trunk until it fills the middle of the screen
+  before you start.
+- Work a trunk from the bottom up. Break the lowest log, step into the gap, and the next is
+  at head height. The highest ones may need a jump or a block to stand on.
+- Spruce trunks are dark brown with grey-ish bark and grow tall and straight, often in a
+  2x2 block of four trunks - each one is a separate column to break.
+- Oak and birch are short and bushy; acacia leans diagonally, so its trunk may not be
+  directly under its leaves.
+- One tree is four to six logs, sometimes more. Finish the tree you are on before looking
+  for another.
 - If the ground is orange terracotta with no grass, there is no wood here worth hunting.
-  Head for green hills or a forest you can see in the distance instead of searching the
-  canyon you are in.
+  Head for green hills or a forest you can see in the distance.
 - Replant a sapling on grass when you have one, so there is wood here next time.
 
 ## Making tools
@@ -80,18 +105,8 @@
   at it and use again to open it.
 - In Bedrock the recipes you can currently make are listed down the side of the crafting
   screen. Click the recipe, then the result; no arranging in a grid.
-
-## Aiming at something you can see
-- The crosshair is the exact centre of the screen, and you hit whatever is under it. If the
-  thing you want is not under the crosshair, you will hit whatever is.
-- The view is roughly 70 degrees across and 40 high. So to turn to something: how far it
-  sits from the centre, as a fraction of the half-width, times 35 degrees. A quarter of the
-  way to the left edge is about yaw -9; halfway, about -18; at the very edge, about -35.
-  Use the same with 20 degrees for pitch, positive up.
-- Make the turn, then look at the next screenshot before swinging. One turn is rarely exact,
-  and a second small correction is cheaper than hitting the ground.
-- Standing right next to something means looking slightly DOWN at it, not level - mobs and
-  blocks at your feet are below the centre line.
+- Select a tool in the hotbar before using it. Carrying an axe does nothing if you are
+  still holding nothing.
 
 ## Dealing with mobs
 - Swing while backing away rather than standing still, and re-aim between hits - they move.
@@ -119,3 +134,16 @@
 - Escape closes a menu you opened. With no menu open it opens the pause menu and freezes
   the game, so only ever use it to close something.
 - Movement keys go into an open menu instead of the world. Close it before moving.
+
+## When something is not working
+- "NOTHING HAPPENED" after a mine: you were not aimed at a block. Walking closer fixes this
+  far more often than holding longer.
+- Mining that cracks but never breaks: the block is too hard for your hands. Leave it and
+  find wood, or come back with the right tool.
+- Walking but not moving: a wall or a pit. Jump forward, or turn and go another way.
+- Nothing in the hotbar after breaking things: you have not walked over the drops.
+- The same view for several plans running: you are not actually travelling. Commit to one
+  direction and hold it.
+- Health falling with nothing in sight: turn around, then deal with what is there.
+- Repeating a plan that did nothing the last three times is the one thing never worth
+  doing. Change something - position, aim, direction, or target.
