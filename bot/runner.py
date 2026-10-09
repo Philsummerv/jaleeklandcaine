@@ -190,6 +190,8 @@ class Bot:
         no_hud_cooldown = 0.0
         recent_health = collections.deque(maxlen=3)
         saved_damage_frame = False
+        down_frames = 0
+        down_cooldown = 0.0
         stuck_frames = 0
         stuck_cooldown = 0.0
         stuck_needed = max(int(c.get("stuck_seconds", 1.5) / 0.1), 1)
@@ -271,6 +273,25 @@ class Bot:
                     # over and over has walked the bot into holes. Hand it to the tactician.
                     self.alert(f"lava detector has fired {recent}x ({hud['lava']:.0%} of view); not backing "
                                "off again. If this is orange rock and not lava, say so and move on")
+
+            # Staring at the floor. It cannot see trees, mobs or cliffs from down there, and
+            # it spent a whole run pointed at its feet, breaking the dirt it had mistaken for
+            # a tree trunk. Mining at your feet is a reason to look down, but not forever, so
+            # mining gets a longer rope rather than an exemption.
+            doing = self.executor.snapshot()["doing_now"]
+            busy_below = doing.startswith(("mine", "use", "gui_click"))
+            down_frames = down_frames + 1 if self.executor.pitch < -c.get("look_down_degrees", 50) else 0
+            patience = (c.get("look_down_max_seconds", 14) if busy_below
+                        else c.get("look_down_seconds", 4))
+            if down_frames > patience / 0.1 and now > down_cooldown:
+                down_frames = 0
+                down_cooldown = now + 10
+                self.executor.set_plan([{"type": "look", "yaw": 0, "pitch": -self.executor.pitch}],
+                                       source="reflex")
+                self.executor.level_the_view()
+                self.alert("you were staring at the ground, so the view has been levelled. A tree "
+                           "trunk is never below you - if you are chopping, the crosshair belongs "
+                           "at or above eye level. Looking down is for mining at your feet")
 
             # Walking without the view changing: against a wall, or in a pit.
             if c.get("stuck_detect", True):

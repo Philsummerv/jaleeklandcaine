@@ -83,6 +83,14 @@
   thing you are aimed at may be the ground or a leaf in front of it, which looks nearly the
   same from a distance. Walk right up to the trunk until it fills the middle of the screen
   before you start.
+- A TRUNK IS NEVER BELOW YOU. It stands from the ground up past your head, so when you are
+  chopping, the crosshair belongs at or just above eye level - pitch near 0. If you are
+  looking down at the ground, whatever is under the crosshair is ground, however brown it
+  looks. Dirt, coarse dirt, podzol and spruce bark are all much the same colour; what tells
+  them apart is that one is a flat surface under your feet and the other is a vertical
+  column in front of you.
+- Breaking the ground gives dirt, which is not wood and does not count. If your hotbar is
+  filling with something while you "chop", check that it is logs.
 - Work a trunk from the bottom up. Break the lowest log, step into the gap, and the next is
   at head height. The highest ones may need a jump or a block to stand on.
 - Spruce trunks are dark brown with grey-ish bark and grow tall and straight, often in a
@@ -136,6 +144,8 @@
 - Movement keys go into an open menu instead of the world. Close it before moving.
 
 ## When something is not working
+- Mining while looking down when the goal is wood: you are digging the floor. Level the
+  view, find the vertical column of bark, walk to it, and aim level.
 - "NOTHING HAPPENED" after a mine: you were not aimed at a block. Walking closer fixes this
   far more often than holding longer.
 - Mining that cracks but never breaks: the block is too hard for your hands. Leave it and

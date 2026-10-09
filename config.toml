@@ -60,14 +60,20 @@ journal_lines = 14
 # useful from there. Mining and placing are exempt - looking down is right for those.
 look_down_degrees = 50
 look_down_seconds = 4
+look_down_max_seconds = 14    # mining at your feet is legitimate, but not indefinitely: past
+                              # this the view is levelled even mid-mine. It spent a run staring
+                              # down, mining the dirt it had mistaken for the tree trunk.
 
 # The bot stops itself once this much has been spent in one session.
 max_dollars_per_session = 5.00
 
 # --- Game / screen ---------------------------------------------------------
 window_title = "Minecraft"
-screenshot_width = 768        # screenshots are shrunk to this width before sending. was 1024.
-                              # Image tokens ~ width x height / 750: 768x432 = ~440 tokens, 1024x576 = ~790.
+screenshot_width = 1280       # screenshots are shrunk to this width before sending.
+                              # Image tokens ~ width x height / 750, and the image is never
+                              # cached: 768px costs ~2.4c/hour, 1280px ~6.8c/hour at 600 calls.
+                              # Worth it - at 768 the bot could not tell dirt from spruce bark,
+                              # and 4c/hour is nothing against the rest of the bill.
 jpeg_quality = 70             # doesn't affect token cost (that depends on pixel size), only upload size
 
 # Mouse pixels per degree of camera turn. Run `python -m bot test-input` and adjust
