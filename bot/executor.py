@@ -75,6 +75,9 @@ class Executor(threading.Thread):
         # In Bedrock, escape with no menu open OPENS the pause menu, which freezes the
         # game until something closes it. Only send it when a menu is believed to be open.
         self.menu_open = False
+        # Roughly where the camera points, from the turns we have sent. Starts level and
+        # clamps like the game does, so it tracks well enough to notice staring at the floor.
+        self.pitch = 0.0
         self.last_action_end = time.monotonic()
 
     # --- plan management (called from other threads) ----------------------
@@ -106,6 +109,10 @@ class Executor(threading.Thread):
                 "still_queued": [describe(a) for a in self.queue],
                 "recently_done": list(self.history),
             }
+
+    def level_the_view(self):
+        """The camera is level again - called after a correcting look is sent."""
+        self.pitch = 0.0
 
     def menu_may_be_open(self):
         """Told from outside when the HUD has vanished for a while: something is covering
@@ -162,6 +169,7 @@ class Executor(threading.Thread):
     def _run_for(self, seconds, yaw=0.0, pitch=0.0, on_tick=None):
         """Wait `seconds`, spreading a camera turn evenly across the time.
         Returns False if interrupted."""
+        self.pitch = max(-90.0, min(self.pitch + float(pitch), 90.0))
         steps = max(1, int(seconds / TICK))
         px_x, px_y = yaw * self.ppd, -pitch * self.ppd
         sent_x = sent_y = 0.0

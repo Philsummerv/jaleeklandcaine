@@ -11,9 +11,38 @@ import anthropic
 
 from .brain import BadResponse, Brain, BudgetExceeded, CostTracker, parse_manifesto
 from .executor import Executor
+from .journal import Journal
 from .pacing import (call_reason, frame_change, frame_signature, looks_stuck, settled_damage,
                      should_skip)
 from .screen import HudReader, Screen, encode_jpeg
+
+def describe_action(a):
+    """A few words per action, so a journal line reads like "walked forward 3s, looked -40"."""
+    t = a.get("type", "?")
+    if t == "walk":
+        return f"walked {a.get('direction', 'forward')} {a.get('seconds', 1):g}s"
+    if t == "look":
+        return f"looked yaw {a.get('yaw', 0):g} pitch {a.get('pitch', 0):g}"
+    if t in ("mine", "use", "wait", "sneak"):
+        return f"{t} {a.get('seconds', 1):g}s"
+    if t == "attack":
+        return f"attacked x{a.get('times', 1)}"
+    return t
+
+
+def describe_action(a):
+    """A few words per action, so a journal line reads like "walked forward 3s, looked -40"."""
+    t = a.get("type", "?")
+    if t == "walk":
+        return f"walked {a.get('direction', 'forward')} {a.get('seconds', 1):g}s"
+    if t == "look":
+        return f"looked yaw {a.get('yaw', 0):g} pitch {a.get('pitch', 0):g}"
+    if t in ("mine", "use", "wait", "sneak"):
+        return f"{t} {a.get('seconds', 1):g}s"
+    if t == "attack":
+        return f"attacked x{a.get('times', 1)}"
+    return t
+
 
 MAX_SECONDS = 6.0
 # Mining needs its own ceiling. By hand a block takes hardness x 5 seconds: terracotta is
@@ -75,6 +104,7 @@ class Bot:
         self.last_damage = 0.0
         self.last_stuck = 0.0
         self.milestones_done = []
+        self.journal = Journal(cfg.get("journal_file", "journal.txt"), cfg.get("journal_lines", 14))
         self.manifesto_path = cfg.get("manifesto_file", "manifesto.txt")
         self.manifesto_stamp = None
         self.techniques_path = cfg.get("techniques_file", "techniques.txt")
@@ -93,6 +123,7 @@ class Bot:
 
     def alert(self, text):
         self.alerts.append((time.monotonic(), text))
+        self.journal.add("!", text)
         self.log(f"!! {text}")
         self.wake_tactician.set()
 
@@ -356,6 +387,7 @@ class Bot:
                 "recent_alerts": self.recent_alerts(30),
                 "milestones": self.rules.get("ambition_milestones") or [],
                 "milestones_done": self.milestones_done,
+                "journal": self.journal.recent(),
             }
             try:
                 result, cost = self.brain.strategize(self.frame_b64(), state)
@@ -374,6 +406,7 @@ class Bot:
             if result.get("milestone_complete") and reached and reached not in self.milestones_done:
                 self.milestones_done.append(reached)
                 self.log(f"MILESTONE REACHED: {reached}")
+            self.journal.add("goal", result["objective"])
             self.log(f"STRATEGY (${cost:.3f}): {result['objective']}  |  {result['situation']}"
                      + (f"  [working on: {reached}]" if reached else ""))
             self.wake_tactician.set()
@@ -431,6 +464,8 @@ class Bot:
                 "alerts": self.recent_alerts(),
                 "executor": self.executor.snapshot(),
                 "your_last_note": self.tactician_note,
+                "seconds_on_this_objective": int(time.monotonic() - self.objective_started),
+                "journal": self.journal.recent(),
             }
             try:
                 result, cost = self.brain.tactics(self.frame_b64(frame), state)
@@ -444,6 +479,8 @@ class Bot:
                 self.log("   dropped: " + ", ".join(dropped))
             self.tactician_note = result["note"]
             self.last_observation = result["observation"]
+            self.journal.add("saw", f"{result['observation']} -> "
+                             + (", ".join(describe_action(a) for a in plan) or "nothing"))
             took = time.monotonic() - last
             self.log(f"tactic ({took:.1f}s, ${cost:.4f}, {reason}{', calm' if calm else ''}): "
                      f"{result['observation']} -> {len(plan)} actions{'' if accepted else ' (dropped: reflex active)'}")
@@ -477,6 +514,8 @@ class Bot:
 
         from . import winapi  # Windows-only; imported here so clean_plan can be tested anywhere
 
+        self.journal.reset()
+        self.journal.add("start", "run begins")
         self.executor.start()
         for fn in (self.reflex_loop, self.strategist_loop, self.tactician_loop, self.status_loop,
                    self.manifesto_loop):

@@ -51,6 +51,16 @@ stuck_seconds = 1.5           # how long to walk with a static view before sayin
 stuck_change_threshold = 1.5  # mean pixel change (0-255) on a 32x18 thumbnail that counts as moving
 stuck_cooldown_seconds = 6
 
+# A short memory of the run, written locally and handed back on every call. Free: no API
+# cost beyond a few hundred tokens of state. Wiped when a run starts, kept on disk after.
+journal_file = "journal.txt"
+journal_lines = 14
+
+# Staring at the floor: the camera is levelled after this long, since it can see nothing
+# useful from there. Mining and placing are exempt - looking down is right for those.
+look_down_degrees = 50
+look_down_seconds = 4
+
 # The bot stops itself once this much has been spent in one session.
 max_dollars_per_session = 5.00
 

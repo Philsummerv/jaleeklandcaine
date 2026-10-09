@@ -628,3 +628,39 @@ class BarReadingFromRealPixels(unittest.TestCase):
         from bot.screen import icon_runs
         self.assertEqual(len(icon_runs(self.bar(10))), 10)
         self.assertEqual(len(icon_runs(self.bar(4))), 4)
+
+
+class RunJournal(unittest.TestCase):
+    def journal(self):
+        import tempfile
+        from bot.journal import Journal
+        return Journal(str(Path(tempfile.mkdtemp()) / "journal.txt"), keep=3)
+
+    def test_it_keeps_the_most_recent_lines(self):
+        j = self.journal()
+        for i in range(6):
+            j.add("saw", f"thing {i}")
+        recent = j.recent()
+        self.assertEqual(len(recent), 3)
+        self.assertIn("thing 5", recent[-1])
+        self.assertNotIn("thing 0", " ".join(recent))
+
+    def test_a_run_starts_with_a_clean_slate(self):
+        j = self.journal()
+        j.add("goal", "yesterday's wandering")
+        j.reset()
+        self.assertEqual(j.recent(), [])
+        self.assertEqual(Path(j.path).read_text(encoding="utf-8"), "")
+
+    def test_the_file_keeps_everything_for_reading_afterwards(self):
+        j = self.journal()
+        for i in range(6):
+            j.add("saw", f"thing {i}")
+        written = Path(j.path).read_text(encoding="utf-8").splitlines()
+        self.assertEqual(len(written), 6, "the file is the full record, recent() is the window")
+
+    def test_lines_are_stamped_and_tagged(self):
+        j = self.journal()
+        line = j.add("goal", "find a tree\n   with   odd spacing")
+        self.assertTrue(line.startswith("[0:00] goal: "), line)
+        self.assertIn("find a tree with odd spacing", line)

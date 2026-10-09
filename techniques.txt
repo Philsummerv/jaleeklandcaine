@@ -39,6 +39,18 @@
 - Walk over what you break to pick it up.
 - To place a block, aim at the face of a block next to where you want it and use.
 
+## Searching for something you cannot see yet
+- Pick a bearing and hold it. Walking twenty seconds in one direction gets you somewhere;
+  re-deciding every three seconds leaves you where you started.
+- Look level, or slightly up, while travelling. Trees, hills and mobs are all at or above
+  eye level, and nothing you need to find is at your feet.
+- Climb for a view. The top of a ridge shows you where the green is; from the bottom of a
+  canyon you can see nothing but walls.
+- Before setting off, turn a full circle in three or four steps and note what is in each
+  direction, then commit to the best one.
+- If the journal shows you have been in the same place for a minute, the approach is not
+  working. Leave, do not keep adjusting.
+
 ## Getting wood
 - Logs are the trunk, not the leaves. Leaves break instantly and give almost nothing.
 - Work a trunk from the bottom up; the highest logs may need you to jump or stand on

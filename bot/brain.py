@@ -284,6 +284,8 @@ Actions (JSON objects, executed in order):
 Techniques you know for getting around, and for handling mobs and blocks:
 {basics}
 
+`journal` in the state is what has happened this run, oldest first: the goals set, what you saw, what you did, and anything that interrupted you. Read it before you plan. If it shows you have been in the same place for a while, or that you already tried a direction, do something different - pick a bearing and hold it for several plans rather than re-deciding every few seconds. `seconds_on_this_objective` says how long you have been at this; past a minute with nothing to show, change your approach.
+
 `recently_done` in the state tells you how the last action went; "nothing broke" after a mine means your aim or your range was wrong, not that it needs longer. To climb, walk forward WITH jump set. If you died, click Respawn before anything else, reading its position off the screenshot as fractions of the width and height.
 
 Keep the horizon in view while travelling, pitch roughly level: you cannot spot trees, mobs or cliffs while staring at your feet. Look down only to mine or place a block right at your feet, then look back up. If the whole screen is one texture you are probably facing into a wall or a hole, so back out and raise your view.

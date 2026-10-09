@@ -38,6 +38,11 @@ past where your words stop - a one-line ambition still produces a long-term arc.
 works the earliest unfinished milestone and reports which one, and the log shows
 `MILESTONE REACHED` as it goes.
 
+`journal.txt` is the bot's memory of the current run: the goals it set, what it saw, what
+it did, and anything that interrupted it. It is wiped when a run starts, handed back on
+every call so the bot can tell it has been somewhere before, and left on disk afterwards
+for you to read.
+
 ## Setup
 
 1. `pip install -r requirements.txt`

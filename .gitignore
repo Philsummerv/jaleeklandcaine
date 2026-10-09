@@ -3,3 +3,7 @@ __pycache__/
 bot.log
 calibration.png
 .manifesto_rules.json
+journal.txt
+lava_trigger.png
+damage_trigger.png
+calibration_hud.png
