@@ -421,6 +421,7 @@ class Bot:
         last_sig = None
         recheck_at = 0.0
         skipping = False
+        now_mining = None
         while self.running:
             time.sleep(0.03)
             if not self.is_active() or self.objective is None or self.executor.in_reflex():
@@ -473,6 +474,17 @@ class Bot:
                 self.log(f"tactician error: {e}")
                 time.sleep(2)
                 continue
+            # A mine that changed nothing means the aim was wrong. Say so loudly: the bot
+            # reported "crosshair on bark, no outline yet" three calls running and kept
+            # swinging at the dirt beside the tree.
+            for done in self.executor.snapshot()["recently_done"]:
+                if "NOTHING HAPPENED" in done and now_mining != done:
+                    now_mining = done
+                    self.alert("your last mine did nothing at all - the crosshair was not on a "
+                               "block. Before mining again, check for the black outline; if there "
+                               "is none, step closer or aim somewhere else. Leaves in front of a "
+                               "trunk have to be cleared first")
+                    break
             plan, dropped = clean_plan(result["plan"])
             accepted = self.executor.set_plan(plan)
             if dropped:

@@ -76,6 +76,9 @@ mouse_pixels_per_degree = 6.0
 
 # How different (0-255) the crosshair area must become to count as "block broke".
 mine_break_threshold = 28
+# Below this, nothing under the crosshair changed at all while mining, which means the aim
+# was wrong rather than the block being hard. The two get different advice.
+mine_progress_threshold = 4.0
 
 # The bot re-reads this file while running: edit it by hand, or with `python -m bot manifesto`,
 # and it recompiles its rules and milestones and picks a fresh objective. A change costs one

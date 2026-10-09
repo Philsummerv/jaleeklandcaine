@@ -29,7 +29,8 @@
   finish it. Use mine for blocks, never attack.
 - Check the aim first: a black outline is drawn around the block under the crosshair. No
   outline means you are aimed at air or standing too far back - your reach is about four
-  blocks, so walk closer.
+  blocks, so walk closer. If you can see there is no outline, do not mine anyway: move,
+  then look again. Mining with nothing under the crosshair wastes the whole hold.
 - Expect roughly hardness x 5 seconds bare-handed: leaves instant, dirt about 2s, wood
   about 3s, stone and terracotta about 7s. Give a stony block 12 seconds or the hold ends
   just before it gives and the progress resets.
@@ -53,6 +54,15 @@
 
 ## Getting wood
 - Logs are the trunk, not the leaves. Leaves break instantly and give almost nothing.
+- Leaves get in the way. On a spruce or any dense tree the trunk is usually behind a
+  screen of leaves, and you cannot reach through them: break the leaves in front first,
+  then the trunk behind. They take no time at all.
+- A trunk seen from a few blocks away is often not the block under your crosshair. The
+  thing you are aimed at may be the ground or a leaf in front of it, which looks nearly
+  the same from a distance. Walk right up to the trunk until it fills the middle of the
+  screen before you start.
+- Check the result of the last mine before repeating it. "NOTHING HAPPENED" means you
+  were aimed at nothing - walking closer fixes that far more often than holding longer.
 - Work a trunk from the bottom up; the highest logs may need you to jump or stand on
   something.
 - If the ground is orange terracotta with no grass, there is no wood here worth hunting.

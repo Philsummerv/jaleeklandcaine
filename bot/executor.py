@@ -325,14 +325,23 @@ class Executor(threading.Thread):
                 return "interrupted"
             base = center_patch(self.screen)
             t0 = time.monotonic()
+            busiest = 0.0
             while time.monotonic() - t0 < max_seconds:
                 if not self._ok():
                     return "interrupted"
                 diff = float(np.abs(center_patch(self.screen) - base).mean())
+                busiest = max(busiest, diff)
                 if diff > threshold:
                     self._run_for(0.05)
                     return f"block broke after {time.monotonic() - t0 + 0.2:.1f}s"
                 time.sleep(0.05)
-            return f"nothing broke in {max_seconds:.0f}s (wrong aim, too hard, or air?)"
+            # Cracks spreading over a block change the crosshair area a little; aiming at
+            # nothing changes it not at all. Worth telling apart - one means keep going with
+            # a better tool, the other means you are swinging at air.
+            if busiest < self.cfg.get("mine_progress_threshold", 4.0):
+                return (f"NOTHING HAPPENED in {max_seconds:.0f}s: nothing under the crosshair "
+                        "changed at all, so you were not aimed at a block. Move closer or aim again")
+            return (f"nothing broke in {max_seconds:.0f}s, though it was cracking - the block is "
+                    "hard and you need the right tool, or more time")
         finally:
             self._button("left", False)
